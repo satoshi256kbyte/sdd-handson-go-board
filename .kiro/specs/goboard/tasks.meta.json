@@ -1,0 +1,450 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. HTML スケルトンとデータモデル定数を用意する": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076101648
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790080085626
+      }
+    ],
+    "2.1 createGame と nextTurn を実装する": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076101681
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076114131
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076260465
+      }
+    ],
+    "2.2 createGame のプロパティテストを書く": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076101708
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076728853
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076889667
+      }
+    ],
+    "2.3 isValidCoordinate を実装する": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076101725
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076265982
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076335567
+      }
+    ],
+    "2.4 isValidCoordinate の単体テストを書く": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076101742
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076893957
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076974225
+      }
+    ],
+    "3.1 checkWin を実装する": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076101762
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076339307
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076447541
+      }
+    ],
+    "3.2 checkWin の 5 連成立プロパティテストを書く": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076101784
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076978684
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790077093794
+      }
+    ],
+    "3.3 checkWin の複数方向同時成立プロパティテストを書く": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076101800
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790077097898
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790077191359
+      }
+    ],
+    "3.4 isBoardFull を実装する": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076101815
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076451720
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076516981
+      }
+    ],
+    "4.1 placeStone を実装する": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076101832
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076523191
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076704702
+      }
+    ],
+    "4.2 有効着手の配置プロパティテストを書く": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076101853
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790077197056
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790077366912
+      }
+    ],
+    "4.3 手番切替プロパティテストを書く": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076101876
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790077371201
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790077506473
+      }
+    ],
+    "4.4 無効着手プロパティテストを書く": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076101893
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790077512288
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790077691503
+      }
+    ],
+    "4.5 既存石の不変性プロパティテストを書く": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076101910
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790077695866
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790077808633
+      }
+    ],
+    "4.6 引き分けプロパティテストを書く": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076101927
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790077812767
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790078070547
+      }
+    ],
+    "5.1 test / runTests / assertEqual を実装する": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076101944
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790078075656
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790078239354
+      }
+    ],
+    "5.2 プロパティ用ジェネレータを実装する": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076101962
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790078244566
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790078413752
+      }
+    ],
+    "5.3 初期化・手番の例ベース単体テストを書く": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076101988
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790078418980
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790078534023
+      }
+    ],
+    "5.4 妥当性検証の例ベース単体テストを書く": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076102007
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790078538659
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790078653718
+      }
+    ],
+    "5.5 勝敗・引き分け・不変性の例ベース単体テストを書く": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076102025
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790078658480
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790078788239
+      }
+    ],
+    "6. チェックポイント - すべてのテストが通ることを確認する": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076102041
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790080091494
+      }
+    ],
+    "7.1 盤面描画とステータス表示を実装する": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076102058
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790078795747
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790079592718
+      }
+    ],
+    "7.2 クリックハンドリングと再描画を配線する": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076102076
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790079599124
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790079806058
+      }
+    ],
+    "7.3 ページ読み込み時の起動順を配線する": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076102101
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790079810850
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790080078980
+      }
+    ],
+    "8. 最終チェックポイント - すべてのテストが通ることを確認する": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076102122
+      },
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790080096697
+      }
+    ],
+    "2. GoBoardLogic のゲーム生成と座標検証を実装する": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790076974251
+      }
+    ],
+    "3. GoBoardLogic の勝敗判定と引き分け判定を実装する": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790077191389
+      }
+    ],
+    "4. GoBoardLogic の placeStone を実装して状態遷移を統合する": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790078070583
+      }
+    ],
+    "5. Test_Runner を実装してテストを配線する": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790078788261
+      }
+    ],
+    "7. UI コントローラを実装して起動フローを完成させる": [
+      {
+        "executionId": "e98398ae-6ec8-4e0c-928e-a31dd698fc81",
+        "chatSessionId": "sess_310fc824-437d-45af-ab05-96ced20dc1f6",
+        "timestamp": 1790080079010
+      }
+    ]
+  }
+}

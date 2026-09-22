@@ -1,0 +1,2242 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GoBoard</title>
+  <style>
+    /* ===================================================================
+       GoBoard スタイル
+       UI 層（表示・入力）の見た目を定義する。ビジネスロジックには依存しない。
+       盤面描画・ステータス表示の詳細スタイルは後続タスクで拡充する。
+       =================================================================== */
+    :root {
+      --gb-bg: #f5f0e1;
+      --gb-line: #8a6d3b;
+      --gb-text: #2b2b2b;
+      --gb-board-bg: #e8c27a;
+      --gb-cell: 32px;
+      --gb-stone-black: #1c1c1c;
+      --gb-stone-white: #fafafa;
+    }
+
+    body {
+      margin: 0;
+      padding: 24px;
+      background: var(--gb-bg);
+      color: var(--gb-text);
+      font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", sans-serif;
+    }
+
+    h1 {
+      margin: 0 0 16px;
+      font-size: 1.5rem;
+    }
+
+    /* --- ステータス表示 --- */
+    #gb-status {
+      margin: 12px 0;
+      min-height: 1.4em;
+      font-weight: 600;
+    }
+
+    /* --- 着手拒否などの通知表示 ---
+       着手が拒否された理由（既に石がある・対局終了済み等）を一時的に伝える。
+       内容が無い間は高さを持たせず、正常な着手のたびにクリアされる。 */
+    #gb-notice {
+      margin: 12px 0;
+      min-height: 1.4em;
+      color: #a12a2a;
+      font-weight: 600;
+    }
+
+    /* --- 盤面（15×15 の交点をグリッドで描画） ---
+       各セル（交点）を CSS グリッドで並べ、セル内に格子線を疑似要素で描く。
+       中央の丸で石（黒・白）を表現する。DOM 構造は UI コントローラが生成する。 */
+    #gb-board {
+      display: inline-grid;
+      grid-template-columns: repeat(15, var(--gb-cell));
+      grid-template-rows: repeat(15, var(--gb-cell));
+      background: var(--gb-board-bg);
+      padding: calc(var(--gb-cell) / 2);
+      border: 2px solid var(--gb-line);
+      border-radius: 4px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    }
+
+    .gb-cell {
+      position: relative;
+      width: var(--gb-cell);
+      height: var(--gb-cell);
+      padding: 0;
+      margin: 0;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+
+    /* 横方向の格子線（セル中央を水平に通す）。 */
+    .gb-cell::before {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 0;
+      width: 100%;
+      height: 1px;
+      background: var(--gb-line);
+      transform: translateY(-0.5px);
+    }
+
+    /* 縦方向の格子線（セル中央を垂直に通す）。 */
+    .gb-cell::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 0;
+      width: 1px;
+      height: 100%;
+      background: var(--gb-line);
+      transform: translateX(-0.5px);
+    }
+
+    /* 盤の端では線が交点の外へはみ出さないよう半分に切る。 */
+    .gb-cell[data-col="0"]::before { left: 50%; width: 50%; }
+    .gb-cell[data-col="14"]::before { width: 50%; }
+    .gb-cell[data-row="0"]::after { top: 50%; height: 50%; }
+    .gb-cell[data-row="14"]::after { height: 50%; }
+
+    /* 石（黒・白）。交点中央に円で重ねる。 */
+    .gb-stone {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 78%;
+      height: 78%;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+      pointer-events: none;
+    }
+
+    .gb-stone-black {
+      background: radial-gradient(circle at 35% 30%, #555, var(--gb-stone-black) 70%);
+    }
+
+    .gb-stone-white {
+      background: radial-gradient(circle at 35% 30%, #fff, #d0d0d0 80%);
+      border: 1px solid #b5b5b5;
+    }
+  </style>
+</head>
+<body>
+  <h1>GoBoard</h1>
+  <div id="gb-status"></div>
+  <div id="gb-board"></div>
+  <div id="gb-notice" role="alert" aria-live="polite"></div>
+
+  <script>
+    'use strict';
+
+    /* ===================================================================
+       GoBoard
+       単一 HTML ファイルで完結する実装。
+       - ビジネスロジックは GoBoardLogic 名前空間の純粋関数として DOM から分離する。
+       - テストランナーおよび UI コントローラは後続タスクで実装する。
+       =================================================================== */
+
+    /* -------------------------------------------------------------------
+       Data Models（データモデル定数）
+       ------------------------------------------------------------------- */
+
+    /**
+     * 石および手番の色。
+     * @readonly
+     */
+    const Color = Object.freeze({
+      BLACK: 'BLACK',
+      WHITE: 'WHITE',
+    });
+
+    /**
+     * 各交点（Intersection）の状態。「空」を含む。
+     * @readonly
+     */
+    const CellState = Object.freeze({
+      EMPTY: 'EMPTY',
+      BLACK: 'BLACK',
+      WHITE: 'WHITE',
+    });
+
+    /**
+     * ゲームの進行状態（Game_Status）。
+     * @readonly
+     */
+    const GameStatus = Object.freeze({
+      IN_PROGRESS: 'IN_PROGRESS',
+      BLACK_WIN: 'BLACK_WIN',
+      WHITE_WIN: 'WHITE_WIN',
+      DRAW: 'DRAW',
+    });
+
+    /** 盤面の一辺の交点数（15×15 = 225 交点）。 */
+    const BOARD_SIZE = 15;
+
+    /** 勝利に必要な同色連続数。 */
+    const WIN_LENGTH = 5;
+
+    /**
+     * 勝敗判定で走査する 4 方向。
+     * 各方向について起点から両側の同色連続数を数える。
+     * @readonly
+     */
+    const DIRECTIONS = Object.freeze([
+      Object.freeze({ dr: 0, dc: 1 }),   // 横
+      Object.freeze({ dr: 1, dc: 0 }),   // 縦
+      Object.freeze({ dr: 1, dc: 1 }),   // 右下がり斜め
+      Object.freeze({ dr: 1, dc: -1 }),  // 右上がり斜め
+    ]);
+
+    /**
+     * 着手が無効だったときの理由コード。
+     * @readonly
+     */
+    const InvalidReason = Object.freeze({
+      OCCUPIED: 'OCCUPIED',                     // 既に石がある交点への着手
+      OUT_OF_BOUNDS: 'OUT_OF_BOUNDS',           // 行または列が 0〜14 の範囲外
+      INVALID_COORDINATE: 'INVALID_COORDINATE', // 行または列が整数でない値
+      NOT_IN_PROGRESS: 'NOT_IN_PROGRESS',       // ゲームが進行中でない状態での着手
+    });
+
+    /* -------------------------------------------------------------------
+       GoBoardLogic（ビジネスロジック層 / DOM 非依存の純粋関数群）
+       すべての関数は入力状態を変更せず、新しい値を返す。
+       ------------------------------------------------------------------- */
+    const GoBoardLogic = (function () {
+
+      /**
+       * 新しいゲーム状態を生成する。
+       * 既存状態に依存せず、常に同一の初期状態を返す。
+       * - board: 全 225 交点が CellState.EMPTY
+       * - currentTurn: Color.BLACK（先手は黒）
+       * - status: GameStatus.IN_PROGRESS
+       * @returns {{board: string[][], currentTurn: string, status: string}} 初期 GameState
+       */
+      function createGame() {
+        const board = [];
+        for (let row = 0; row < BOARD_SIZE; row++) {
+          const cells = [];
+          for (let col = 0; col < BOARD_SIZE; col++) {
+            cells.push(CellState.EMPTY);
+          }
+          board.push(cells);
+        }
+        return {
+          board: board,
+          currentTurn: Color.BLACK,
+          status: GameStatus.IN_PROGRESS,
+        };
+      }
+
+      /**
+       * 手番の色を他方に切り替えた色を返す純粋関数。
+       * @param {string} turn 現在の手番の色（Color）
+       * @returns {string} 他方の色
+       */
+      function nextTurn(turn) {
+        return turn === Color.BLACK ? Color.WHITE : Color.BLACK;
+      }
+
+      /* --- 以下は後続タスクで実装するプレースホルダ ------------------- */
+
+      /**
+       * 座標が盤内かつ整数であるかを検証する。
+       * row・col がいずれも整数で、かつ 0〜(BOARD_SIZE - 1) の範囲に収まるときのみ true を返す。
+       * 小数・NaN・null・undefined・数値以外の型（文字列・真偽値・オブジェクト等）は
+       * Number.isInteger による型／整数チェックで弾かれ、範囲外の整数も false となる。
+       * @param {number} row 行番号
+       * @param {number} col 列番号
+       * @returns {boolean} 有効な座標なら true
+       */
+      function isValidCoordinate(row, col) {
+        return (
+          Number.isInteger(row) &&
+          Number.isInteger(col) &&
+          row >= 0 &&
+          row < BOARD_SIZE &&
+          col >= 0 &&
+          col < BOARD_SIZE
+        );
+      }
+
+      /**
+       * 指定した交点を起点に、その交点の石の色で 5 連が成立しているか判定する。
+       * 起点セルが空（CellState.EMPTY）の場合は勝利なしとして false を返す。
+       * 4 方向（横・縦・右下がり斜め・右上がり斜め）それぞれについて、起点から
+       * 正負両側に連続する同色の石を数え、起点自身を含めた合計が WIN_LENGTH 以上に
+       * なる方向が 1 つでもあれば true を返す。走査は盤内の同色セルに限る。
+       * @param {string[][]} board 盤面
+       * @param {number} row 起点の行
+       * @param {number} col 起点の列
+       * @returns {boolean} 5 連が成立していれば true
+       */
+      function checkWin(board, row, col) {
+        const color = board[row][col];
+        if (color === CellState.EMPTY) {
+          return false;
+        }
+        for (let i = 0; i < DIRECTIONS.length; i++) {
+          const dr = DIRECTIONS[i].dr;
+          const dc = DIRECTIONS[i].dc;
+          let count = 1; // 起点自身
+          // 正方向へ連続する同色を数える
+          let r = row + dr;
+          let c = col + dc;
+          while (isValidCoordinate(r, c) && board[r][c] === color) {
+            count++;
+            r += dr;
+            c += dc;
+          }
+          // 負方向へ連続する同色を数える
+          r = row - dr;
+          c = col - dc;
+          while (isValidCoordinate(r, c) && board[r][c] === color) {
+            count++;
+            r -= dr;
+            c -= dc;
+          }
+          if (count >= WIN_LENGTH) {
+            return true;
+          }
+        }
+        return false;
+      }
+
+      /**
+       * 盤面上のすべての交点が石で埋まっているか判定する。
+       * 225 交点のいずれかが CellState.EMPTY であれば false、
+       * 空の交点が 1 つも無ければ true を返す。
+       * @param {string[][]} board 盤面
+       * @returns {boolean} 全交点が埋まっていれば true
+       */
+      function isBoardFull(board) {
+        for (let row = 0; row < BOARD_SIZE; row++) {
+          for (let col = 0; col < BOARD_SIZE; col++) {
+            if (board[row][col] === CellState.EMPTY) {
+              return false;
+            }
+          }
+        }
+        return true;
+      }
+
+      /**
+       * 指定した交点に現在の手番の石を置こうと試みる。
+       * 入力状態は変更せず（イミュータブル）、着手の可否・無効理由・結果状態を含む
+       * MoveResult を返す。検証は次の順序で行う。
+       * 1. status が IN_PROGRESS でなければ reason=NOT_IN_PROGRESS。
+       * 2. 座標が無効なら、row・col がともに整数だが範囲外の場合のみ
+       *    reason=OUT_OF_BOUNDS、それ以外（小数・NaN・null・undefined・非数値型）は
+       *    reason=INVALID_COORDINATE。
+       * 3. 対象交点が空でなければ reason=OCCUPIED。
+       * 4. 有効な場合は盤面を複製して手番の色を置き、勝敗・引き分け・継続の
+       *    いずれかへ status を更新する。継続時のみ手番を切り替え、ゲーム終了時は
+       *    着手したプレイヤーの手番を保持する。
+       * 無効な着手では state を入力と内容が等しい状態として返し、入力は破壊しない。
+       * @param {{board: string[][], currentTurn: string, status: string}} state 現在のゲーム状態
+       * @param {number} row 行番号
+       * @param {number} col 列番号
+       * @returns {{valid: boolean, reason: string|null, state: object}} MoveResult
+       */
+      function placeStone(state, row, col) {
+        // 1. ゲームが進行中でなければ着手不可。入力状態は変更しない。
+        if (state.status !== GameStatus.IN_PROGRESS) {
+          return { valid: false, reason: InvalidReason.NOT_IN_PROGRESS, state: state };
+        }
+
+        // 2. 座標が無効な場合の理由判定。
+        //    row・col がともに整数だが盤外 → OUT_OF_BOUNDS、
+        //    それ以外（小数・NaN・null・undefined・非数値型など） → INVALID_COORDINATE。
+        if (!isValidCoordinate(row, col)) {
+          const reason = (Number.isInteger(row) && Number.isInteger(col))
+            ? InvalidReason.OUT_OF_BOUNDS
+            : InvalidReason.INVALID_COORDINATE;
+          return { valid: false, reason: reason, state: state };
+        }
+
+        // 3. 対象交点が既に埋まっていれば着手不可。
+        if (state.board[row][col] !== CellState.EMPTY) {
+          return { valid: false, reason: InvalidReason.OCCUPIED, state: state };
+        }
+
+        // 4. 有効な着手。盤面を複製（行ごとにコピー）し、手番の色を置く。
+        const placedColor = state.currentTurn;
+        const placedCellState = placedColor === Color.BLACK ? CellState.BLACK : CellState.WHITE;
+        const newBoard = state.board.map(function (cells) {
+          return cells.slice();
+        });
+        newBoard[row][col] = placedCellState;
+
+        // status を更新する。勝利 > 引き分け > 継続 の順で判定する。
+        let newStatus;
+        if (checkWin(newBoard, row, col)) {
+          newStatus = placedColor === Color.BLACK ? GameStatus.BLACK_WIN : GameStatus.WHITE_WIN;
+        } else if (isBoardFull(newBoard)) {
+          newStatus = GameStatus.DRAW;
+        } else {
+          newStatus = GameStatus.IN_PROGRESS;
+        }
+
+        // 継続中のみ手番を切り替える。ゲーム終了時は着手者の手番を保持する。
+        const newCurrentTurn = newStatus === GameStatus.IN_PROGRESS
+          ? nextTurn(placedColor)
+          : placedColor;
+
+        return {
+          valid: true,
+          reason: null,
+          state: {
+            board: newBoard,
+            currentTurn: newCurrentTurn,
+            status: newStatus,
+          },
+        };
+      }
+
+      return {
+        createGame: createGame,
+        nextTurn: nextTurn,
+        isValidCoordinate: isValidCoordinate,
+        checkWin: checkWin,
+        isBoardFull: isBoardFull,
+        placeStone: placeStone,
+      };
+    })();
+
+    /* -------------------------------------------------------------------
+       Test_Runner（テスト層）
+       DOM 非依存のビジネスロジックに対するテストを登録・実行する。
+
+       ここでは後続タスクが拡張する最小のブートストラップのみを用意する。
+       - GB_TESTS: 登録済みテストのモジュールレベルレジストリ。
+       - test(name, fn): テストを GB_TESTS に登録する。
+       - assertEqual(actual, expected, message): 不一致時に期待値・実際値を
+         含む Error を投げる（配列・オブジェクトは JSON.stringify で深い比較、
+         それ以外は厳密等価で比較）。
+       runTests の完全な挙動（同期実行・成否ログ・サマリ出力・例外の非伝播）は
+       Task 5.1 で、プロパティ用ジェネレータは Task 5.2 で実装する。
+       ------------------------------------------------------------------- */
+
+    /** 登録済みテストのレジストリ。 */
+    const GB_TESTS = [];
+
+    /**
+     * テストを登録する。実行は runTests()（Task 5.1）が行う。
+     * @param {string} name テスト名
+     * @param {function(): void} fn テスト本体。失敗時は Error を投げる。
+     */
+    function test(name, fn) {
+      GB_TESTS.push({ name: name, fn: fn });
+    }
+
+    /**
+     * actual と expected が等しくなければ Error を投げる最小アサーション。
+     * 配列・オブジェクトは JSON.stringify による深い比較、
+     * それ以外の値は厳密等価（===）で比較する。
+     * Task 5.1 で診断出力に合わせて洗練する余地があるが、後方互換を保つ。
+     * @param {*} actual 実際の値
+     * @param {*} expected 期待値
+     * @param {string} [message] 失敗時に付与するメッセージ
+     */
+    function assertEqual(actual, expected, message) {
+      const isCompound = function (v) {
+        return v !== null && typeof v === 'object';
+      };
+      const equal = (isCompound(actual) || isCompound(expected))
+        ? JSON.stringify(actual) === JSON.stringify(expected)
+        : actual === expected;
+      if (!equal) {
+        throw new Error(
+          (message ? message + ': ' : '') +
+          'expected ' + JSON.stringify(expected) +
+          ' but got ' + JSON.stringify(actual)
+        );
+      }
+    }
+
+    /**
+     * 登録済みの全テスト（GB_TESTS）を登録順に同期実行する。
+     * 各テストは try/catch で個別に囲み、1 件でも失敗しても例外を外へ伝播させない。
+     * - 成功時: `[PASS] <テスト名>` を 1 行 console.log 出力する。
+     * - 失敗時: `[FAIL] <テスト名>` を 1 行出力し、続けて診断情報として
+     *   投げられた Error のメッセージ（assertEqual が付与する期待値・実際値を含む）を
+     *   `  → <メッセージ>` として出力する。処理は次のテストへ継続する。
+     * 全テスト完了後、総数・成功数・失敗数のサマリを 1 行出力する。
+     * ページ読み込み時の起動フック配線は Task 7.3 で行う（ここでは定義のみ）。
+     * @returns {{total: number, passed: number, failed: number}} 実行結果のサマリ
+     */
+    function runTests() {
+      let passed = 0;
+      let failed = 0;
+
+      for (let i = 0; i < GB_TESTS.length; i++) {
+        const entry = GB_TESTS[i];
+        const name = entry.name;
+        try {
+          entry.fn();
+          passed++;
+          console.log('[PASS] ' + name);
+        } catch (error) {
+          failed++;
+          console.log('[FAIL] ' + name);
+          // Error 以外が投げられた場合も安全に文字列化する。
+          const detail = (error && error.message) ? error.message : String(error);
+          console.log('  → ' + detail);
+        }
+      }
+
+      const total = GB_TESTS.length;
+      console.log(
+        'GoBoard tests: total=' + total +
+        ' passed=' + passed +
+        ' failed=' + failed
+      );
+
+      return { total: total, passed: passed, failed: failed };
+    }
+
+    /* --- 単体テスト（例ベース） -------------------------------------- */
+
+    // isValidCoordinate: 行・列が整数 0〜14 の範囲内かを検証する。
+    // 盤内は true、範囲外・小数・null・undefined・NaN・文字列など整数でない
+    // 値は false になることを、代表的な例で確認する。
+    // Validates: Requirements 3.2, 3.3
+    test('isValidCoordinate: 盤内の座標は true', function () {
+      assertEqual(GoBoardLogic.isValidCoordinate(0, 0), true, '左上端 (0,0)');
+      assertEqual(GoBoardLogic.isValidCoordinate(7, 7), true, '中央 (7,7)');
+      assertEqual(GoBoardLogic.isValidCoordinate(14, 14), true, '右下端 (14,14)');
+    });
+
+    test('isValidCoordinate: 範囲外の座標は false', function () {
+      assertEqual(GoBoardLogic.isValidCoordinate(-1, 0), false, '行が負 (-1,0)');
+      assertEqual(GoBoardLogic.isValidCoordinate(0, 15), false, '列が上限超過 (0,15)');
+      assertEqual(GoBoardLogic.isValidCoordinate(15, 15), false, '行・列が上限超過 (15,15)');
+      assertEqual(GoBoardLogic.isValidCoordinate(0, -1), false, '列が負 (0,-1)');
+    });
+
+    test('isValidCoordinate: 小数は false', function () {
+      assertEqual(GoBoardLogic.isValidCoordinate(1.5, 2), false, '行が小数 (1.5,2)');
+      assertEqual(GoBoardLogic.isValidCoordinate(3, 4.2), false, '列が小数 (3,4.2)');
+    });
+
+    test('isValidCoordinate: null は false', function () {
+      assertEqual(GoBoardLogic.isValidCoordinate(null, 0), false, '行が null');
+      assertEqual(GoBoardLogic.isValidCoordinate(0, null), false, '列が null');
+    });
+
+    test('isValidCoordinate: undefined は false', function () {
+      assertEqual(GoBoardLogic.isValidCoordinate(undefined, 0), false, '行が undefined');
+      assertEqual(GoBoardLogic.isValidCoordinate(0), false, '列の引数を省略');
+    });
+
+    test('isValidCoordinate: NaN は false', function () {
+      assertEqual(GoBoardLogic.isValidCoordinate(NaN, 0), false, '行が NaN');
+    });
+
+    test('isValidCoordinate: 文字列は false', function () {
+      assertEqual(GoBoardLogic.isValidCoordinate('1', 2), false, "行が文字列 ('1',2)");
+      assertEqual(GoBoardLogic.isValidCoordinate(3, '4'), false, "列が文字列 (3,'4')");
+    });
+
+    // 初期化・手番の例ベース単体テスト。
+    // createGame() の初期状態（全 225 交点が空・着手済み 0 個、初期手番が黒、
+    // 初期ステータスが進行中）と、着手による手番の挙動（初手は黒、有効着手ごとに
+    // 黒→白→黒…と交互切替）を代表的な例で検証する。手番切替の検証では、5 連が
+    // 成立しないよう散らばった交点を選び、各着手後に status が進行中のままである
+    // ことも確認する。
+    // Validates: Requirements 7.6, 7.7, 7.8（下位: 1.1, 1.2, 1.3, 1.4, 2.4, 2.5）
+    test('初期盤面: 全 225 交点が空で着手済み 0 個', function () {
+      const state = GoBoardLogic.createGame();
+
+      // 15×15 の盤面である。
+      assertEqual(state.board.length, BOARD_SIZE, 'board 行数');
+
+      // 全交点が空であることを確認しつつ、置かれた石の数を数える。
+      let placed = 0;
+      for (let row = 0; row < BOARD_SIZE; row++) {
+        assertEqual(state.board[row].length, BOARD_SIZE, 'board 列数 (行 ' + row + ')');
+        for (let col = 0; col < BOARD_SIZE; col++) {
+          assertEqual(
+            state.board[row][col],
+            CellState.EMPTY,
+            '交点(' + row + ',' + col + ') が空'
+          );
+          if (state.board[row][col] !== CellState.EMPTY) {
+            placed++;
+          }
+        }
+      }
+
+      // 着手済みの交点は 0 個。
+      assertEqual(placed, 0, '着手済みの交点数');
+    });
+
+    test('初期手番: Current_Turn は黒', function () {
+      assertEqual(GoBoardLogic.createGame().currentTurn, Color.BLACK, 'currentTurn');
+    });
+
+    test('初期ステータス: Game_Status は進行中', function () {
+      assertEqual(GoBoardLogic.createGame().status, GameStatus.IN_PROGRESS, 'status');
+    });
+
+    test('初手の色は黒: 空交点への着手で黒石が置かれる', function () {
+      const initial = GoBoardLogic.createGame();
+      const result = GoBoardLogic.placeStone(initial, 7, 7);
+
+      assertEqual(result.valid, true, '初手が有効');
+      assertEqual(result.state.board[7][7], CellState.BLACK, '初手の石が黒');
+    });
+
+    test('手番の交互切替: 有効着手ごとに黒→白→黒…と切り替わる', function () {
+      // 5 連が成立しないよう十分に散らばった交点を順に着手する。
+      // 隣接・同一直線上での 5 連続を避けるため、行・列ともに離れたセルを選ぶ。
+      const moves = [
+        { row: 0, col: 0 },
+        { row: 1, col: 3 },
+        { row: 2, col: 6 },
+        { row: 3, col: 9 },
+        { row: 4, col: 12 },
+        { row: 5, col: 0 },
+        { row: 6, col: 3 },
+        { row: 7, col: 6 },
+      ];
+
+      let state = GoBoardLogic.createGame();
+      let expectedTurn = Color.BLACK; // 初手は黒
+
+      for (let i = 0; i < moves.length; i++) {
+        const row = moves[i].row;
+        const col = moves[i].col;
+        const ctx = '着手' + (i + 1) + '=(' + row + ',' + col + ')';
+
+        // 着手直前の手番は期待どおり交互になっている。
+        assertEqual(state.currentTurn, expectedTurn, '着手前の手番 [' + ctx + ']');
+
+        const expectedCell = expectedTurn === Color.BLACK ? CellState.BLACK : CellState.WHITE;
+        const result = GoBoardLogic.placeStone(state, row, col);
+
+        // 着手は有効で、置かれた石の色は着手前の手番と一致する。
+        assertEqual(result.valid, true, '着手が有効 [' + ctx + ']');
+        assertEqual(result.state.board[row][col], expectedCell, '置いた石の色 [' + ctx + ']');
+
+        // 5 連は成立しないため、着手後も進行中のまま。
+        assertEqual(
+          result.state.status,
+          GameStatus.IN_PROGRESS,
+          '着手後も進行中 [' + ctx + ']'
+        );
+
+        // 進行中なので手番は他方へ切り替わる。
+        const nextExpected = expectedTurn === Color.BLACK ? Color.WHITE : Color.BLACK;
+        assertEqual(result.state.currentTurn, nextExpected, '着手後の手番が交互 [' + ctx + ']');
+
+        state = result.state;
+        expectedTurn = nextExpected;
+      }
+    });
+
+    // 妥当性検証の例ベース単体テスト。
+    // placeStone による着手検証の代表例を、具体的な状態に対して確認する。
+    // 盤内空交点は受理され、既石・範囲外・非整数座標・進行中以外の状態は
+    // 対応する InvalidReason で拒否され、いずれの無効着手でも盤面と手番が
+    // 変更されないことを検証する。
+    // Validates: Requirements 7.9, 7.10, 7.11, 7.12, 7.13 (下位: 3.1,3.2,3.3,3.4,3.5)
+    test('妥当性検証: 盤内の空交点への着手は受理される', function () {
+      const state = GoBoardLogic.createGame();
+      const result = GoBoardLogic.placeStone(state, 7, 7);
+
+      assertEqual(result.valid, true, '空交点への着手が有効');
+      assertEqual(result.reason, null, '有効な着手では reason は null');
+    });
+
+    test('妥当性検証: 既に石がある交点への着手は OCCUPIED で拒否される', function () {
+      // まず (7,7) に黒石を置く。
+      const first = GoBoardLogic.placeStone(GoBoardLogic.createGame(), 7, 7);
+      assertEqual(first.valid, true, '前提の着手が有効');
+
+      const occupied = first.state;
+      // 同じ交点へもう一度着手を試みる。
+      const result = GoBoardLogic.placeStone(occupied, 7, 7);
+
+      assertEqual(result.valid, false, '既石への着手は無効');
+      assertEqual(result.reason, InvalidReason.OCCUPIED, 'reason は OCCUPIED');
+      // 盤面と手番は変更されない。
+      assertEqual(result.state.board, occupied.board, '盤面は不変');
+      assertEqual(result.state.currentTurn, occupied.currentTurn, '手番は不変');
+    });
+
+    test('妥当性検証: 範囲外座標への着手は OUT_OF_BOUNDS で拒否される', function () {
+      const state = GoBoardLogic.createGame();
+      const outCoords = [
+        { row: -1, col: 0 },
+        { row: 0, col: 15 },
+        { row: 15, col: 15 },
+      ];
+
+      for (let i = 0; i < outCoords.length; i++) {
+        const row = outCoords[i].row;
+        const col = outCoords[i].col;
+        const ctx = '(' + row + ',' + col + ')';
+        const result = GoBoardLogic.placeStone(state, row, col);
+
+        assertEqual(result.valid, false, '範囲外への着手は無効 ' + ctx);
+        assertEqual(result.reason, InvalidReason.OUT_OF_BOUNDS, 'reason は OUT_OF_BOUNDS ' + ctx);
+      }
+    });
+
+    test('妥当性検証: 非整数座標への着手は INVALID_COORDINATE で拒否される', function () {
+      const state = GoBoardLogic.createGame();
+      const badCoords = [
+        { row: 1.5, col: 2 },
+        { row: null, col: 0 },
+        { row: 0, col: undefined },
+        { row: NaN, col: 0 },
+        { row: '3', col: 4 },
+      ];
+
+      for (let i = 0; i < badCoords.length; i++) {
+        const row = badCoords[i].row;
+        const col = badCoords[i].col;
+        const ctx = '(' + JSON.stringify(row) + ',' + JSON.stringify(col) + ')';
+        const result = GoBoardLogic.placeStone(state, row, col);
+
+        assertEqual(result.valid, false, '非整数座標への着手は無効 ' + ctx);
+        assertEqual(
+          result.reason,
+          InvalidReason.INVALID_COORDINATE,
+          'reason は INVALID_COORDINATE ' + ctx
+        );
+      }
+    });
+
+    test('妥当性検証: 進行中以外の状態での着手は NOT_IN_PROGRESS で拒否される', function () {
+      const endStatuses = [GameStatus.BLACK_WIN, GameStatus.DRAW];
+
+      for (let i = 0; i < endStatuses.length; i++) {
+        const status = endStatuses[i];
+        // createGame() 由来の状態に終局ステータスを設定する。
+        const ended = GoBoardLogic.createGame();
+        ended.status = status;
+
+        const result = GoBoardLogic.placeStone(ended, 7, 7);
+
+        assertEqual(result.valid, false, '進行中以外での着手は無効 [' + status + ']');
+        assertEqual(
+          result.reason,
+          InvalidReason.NOT_IN_PROGRESS,
+          'reason は NOT_IN_PROGRESS [' + status + ']'
+        );
+        // 盤面と手番は変更されない。
+        assertEqual(result.state.board, ended.board, '盤面は不変 [' + status + ']');
+        assertEqual(result.state.currentTurn, ended.currentTurn, '手番は不変 [' + status + ']');
+      }
+    });
+
+    // 勝敗・引き分け・不変性の例ベース単体テスト。
+    // placeStone による終局判定を、具体的に構成した盤面に対して確定的に検証する。
+    // placeStone は有効着手ごとに手番を交互切替するため、勝ちテストでは
+    // createGame().board に 4 個の同色石を直接配置し、手番を該当色に設定してから
+    // 5 個目を placeStone で着手する構成をとる。縦・横・両斜めの 5 連勝ち、
+    // 5 連が成立しない盤面での進行中維持、満杯かつ無勝者での引き分け、
+    // 既石への着手での不変性を確認する。
+    // Validates: Requirements 7.14, 7.15, 7.16, 7.17, 7.18, 7.19, 7.20
+    test('勝敗判定: 縦の 5 連で黒勝ち', function () {
+      // (3,7)〜(7,7) の縦一列に黒 5 連。4 個を事前配置し 5 個目を着手する。
+      const state = GoBoardLogic.createGame();
+      state.board[3][7] = CellState.BLACK;
+      state.board[4][7] = CellState.BLACK;
+      state.board[5][7] = CellState.BLACK;
+      state.board[6][7] = CellState.BLACK;
+      state.currentTurn = Color.BLACK;
+      state.status = GameStatus.IN_PROGRESS;
+
+      const result = GoBoardLogic.placeStone(state, 7, 7);
+
+      assertEqual(result.valid, true, '5 個目の着手が有効');
+      assertEqual(result.state.status, GameStatus.BLACK_WIN, '縦 5 連で黒勝ち');
+    });
+
+    test('勝敗判定: 横の 5 連で白勝ち', function () {
+      // (7,3)〜(7,7) の横一列に白 5 連。手番を白に設定して 5 個目を着手する。
+      const state = GoBoardLogic.createGame();
+      state.board[7][3] = CellState.WHITE;
+      state.board[7][4] = CellState.WHITE;
+      state.board[7][5] = CellState.WHITE;
+      state.board[7][6] = CellState.WHITE;
+      state.currentTurn = Color.WHITE;
+      state.status = GameStatus.IN_PROGRESS;
+
+      const result = GoBoardLogic.placeStone(state, 7, 7);
+
+      assertEqual(result.valid, true, '5 個目の着手が有効');
+      assertEqual(result.state.status, GameStatus.WHITE_WIN, '横 5 連で白勝ち');
+    });
+
+    test('勝敗判定: 右上がり斜めの 5 連で黒勝ち', function () {
+      // 方向 (dr:1, dc:-1)。(3,11),(4,10),(5,9),(6,8),(7,7) の斜めに黒 5 連。
+      const state = GoBoardLogic.createGame();
+      state.board[3][11] = CellState.BLACK;
+      state.board[4][10] = CellState.BLACK;
+      state.board[5][9] = CellState.BLACK;
+      state.board[6][8] = CellState.BLACK;
+      state.currentTurn = Color.BLACK;
+      state.status = GameStatus.IN_PROGRESS;
+
+      const result = GoBoardLogic.placeStone(state, 7, 7);
+
+      assertEqual(result.valid, true, '5 個目の着手が有効');
+      assertEqual(result.state.status, GameStatus.BLACK_WIN, '右上がり斜め 5 連で黒勝ち');
+    });
+
+    test('勝敗判定: 右下がり斜めの 5 連で黒勝ち', function () {
+      // 方向 (dr:1, dc:1)。(3,3),(4,4),(5,5),(6,6),(7,7) の斜めに黒 5 連。
+      const state = GoBoardLogic.createGame();
+      state.board[3][3] = CellState.BLACK;
+      state.board[4][4] = CellState.BLACK;
+      state.board[5][5] = CellState.BLACK;
+      state.board[6][6] = CellState.BLACK;
+      state.currentTurn = Color.BLACK;
+      state.status = GameStatus.IN_PROGRESS;
+
+      const result = GoBoardLogic.placeStone(state, 7, 7);
+
+      assertEqual(result.valid, true, '5 個目の着手が有効');
+      assertEqual(result.state.status, GameStatus.BLACK_WIN, '右下がり斜め 5 連で黒勝ち');
+    });
+
+    test('継続判定: 5 連が成立しない着手では進行中を維持する', function () {
+      // 黒石が 4 連未満（同色 3 個が非直線）となる配置に 1 手加えても 5 連は生じない。
+      const state = GoBoardLogic.createGame();
+      state.board[7][7] = CellState.BLACK;
+      state.board[7][8] = CellState.BLACK;
+      state.board[8][7] = CellState.BLACK;
+      state.currentTurn = Color.BLACK;
+      state.status = GameStatus.IN_PROGRESS;
+
+      const result = GoBoardLogic.placeStone(state, 5, 5);
+
+      assertEqual(result.valid, true, '着手が有効');
+      assertEqual(result.state.status, GameStatus.IN_PROGRESS, '5 連なしで進行中維持');
+    });
+
+    test('引き分け判定: 満杯かつ無勝者で引き分けになる', function () {
+      // Property 7 と同じ剪断パターン color(r,c)=floor((2r+c)/2)%2 で満杯盤面を作る。
+      // このパターンは横・縦・両斜めのいずれでも同色は最大 2 連までで 5 連を生じない。
+      const patternColorOf = function (row, col) {
+        return (Math.floor((2 * row + col) / 2) % 2 === 0)
+          ? Color.BLACK
+          : Color.WHITE;
+      };
+      const cellOf = function (row, col) {
+        return patternColorOf(row, col) === Color.BLACK
+          ? CellState.BLACK
+          : CellState.WHITE;
+      };
+
+      // 最後の一手前の盤面（(7,7) だけ空）を構成する。
+      const fr = 7;
+      const fc = 7;
+      const finalColor = patternColorOf(fr, fc);
+      const preBoard = [];
+      for (let r = 0; r < BOARD_SIZE; r++) {
+        const cells = [];
+        for (let c = 0; c < BOARD_SIZE; c++) {
+          cells.push((r === fr && c === fc) ? CellState.EMPTY : cellOf(r, c));
+        }
+        preBoard.push(cells);
+      }
+
+      // 実行時ガード: 最後の一手前の盤面は、埋まっている全交点で勝者を含まない。
+      for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+          if (preBoard[r][c] !== CellState.EMPTY) {
+            assertEqual(
+              GoBoardLogic.checkWin(preBoard, r, c),
+              false,
+              '最後の一手前は勝者なし (' + r + ',' + c + ')'
+            );
+          }
+        }
+      }
+
+      const state = {
+        board: preBoard,
+        currentTurn: finalColor,
+        status: GameStatus.IN_PROGRESS,
+      };
+      const result = GoBoardLogic.placeStone(state, fr, fc);
+
+      assertEqual(result.valid, true, '最後の着手が有効');
+      assertEqual(result.state.status, GameStatus.DRAW, '満杯・無勝者で引き分け');
+    });
+
+    test('不変性: 既石への着手では石の色も手番も変わらない', function () {
+      // (7,7) に黒石を置いた状態を作り、同じ交点へ再着手を試みる。
+      const occupied = GoBoardLogic.placeStone(GoBoardLogic.createGame(), 7, 7).state;
+      const result = GoBoardLogic.placeStone(occupied, 7, 7);
+
+      assertEqual(
+        result.state.board[7][7],
+        occupied.board[7][7],
+        '既石の色は不変'
+      );
+      assertEqual(
+        result.state.currentTurn,
+        occupied.currentTurn,
+        '手番は不変'
+      );
+    });
+
+    /* --- プロパティ用ジェネレータ ------------------------------------ */
+
+    /**
+     * プロパティベーステスト向けのランダム入力ジェネレータ群。
+     *
+     * 外部ライブラリ・CDN を使わず、ブラウザ標準の Math.random のみで
+     * 進行中 GameState・空交点・範囲外座標・不正座標・5 連着手列などの
+     * ランダム入力を生成する。design.md「ジェネレータの設計要点」に対応する。
+     *
+     * これは各プロパティテストが最低 100 回のランダム反復を行うための再利用可能な
+     * ヘルパであり（要件 7.1）、既存テストが持つ局所ヘルパを置き換えるものではなく、
+     * 追加的に利用できる形で提供する。
+     *
+     * すべてのジェネレータは入力に対して純粋であり、渡された board を変更しない。
+     * ただし randomInProgressState は自身で新しい GameState を構築して返す。
+     * @namespace GB_GEN
+     */
+    const GB_GEN = (function () {
+
+      /**
+       * 0 以上 n 未満の整数を一様乱数で返す。
+       * @param {number} n 上限（この値は含まない）。1 以上の整数を想定する。
+       * @returns {number} [0, n) の整数
+       */
+      function randomInt(n) {
+        return Math.floor(Math.random() * n);
+      }
+
+      /**
+       * 盤面上の空（CellState.EMPTY）の交点を集める内部ヘルパ。
+       * 渡された board は変更しない。
+       * @param {string[][]} board 盤面
+       * @returns {{row: number, col: number}[]} 空交点の座標配列
+       */
+      function collectEmptyCells(board) {
+        const cells = [];
+        for (let row = 0; row < BOARD_SIZE; row++) {
+          for (let col = 0; col < BOARD_SIZE; col++) {
+            if (board[row][col] === CellState.EMPTY) {
+              cells.push({ row: row, col: col });
+            }
+          }
+        }
+        return cells;
+      }
+
+      /**
+       * ランダムな進行中（IN_PROGRESS）GameState を生成する。
+       *
+       * createGame() から始め、最大 maxMoves 手までランダムな有効着手を適用する。
+       * 各手はランダムな盤内座標へ placeStone を試み、有効な結果のみ採用する
+       * （既石など無効な手はスキップして同じ状態を保つ）。着手の結果ゲームが
+       * 終局（勝ち・引き分け）した場合は、その時点で適用を打ち切る。
+       *
+       * 返り値は基本的に IN_PROGRESS の状態だが、maxMoves 手目で 5 連や満杯が
+       * 成立した場合は終局状態（BLACK_WIN / WHITE_WIN / DRAW）になり得る。
+       * 進行中の状態が必要な呼び出し側は status を確認すること。
+       * 本関数は自身で新しい状態を構築するため、外部の状態は一切変更しない。
+       * @param {number} [maxMoves=20] 適用を試みる着手の最大数
+       * @returns {{board: string[][], currentTurn: string, status: string}} 生成した GameState
+       */
+      function randomInProgressState(maxMoves) {
+        const limit = Number.isInteger(maxMoves) && maxMoves >= 0 ? maxMoves : 20;
+        let state = GoBoardLogic.createGame();
+        for (let i = 0; i < limit; i++) {
+          if (state.status !== GameStatus.IN_PROGRESS) {
+            break; // 終局したら早期に打ち切る
+          }
+          const row = randomInt(BOARD_SIZE);
+          const col = randomInt(BOARD_SIZE);
+          const result = GoBoardLogic.placeStone(state, row, col);
+          if (result.valid) {
+            state = result.state;
+          }
+          // 無効な手（既石など）は state を維持してスキップする。
+        }
+        return state;
+      }
+
+      /**
+       * 盤面からランダムな空の交点を 1 つ選んで返す。空交点が無ければ null を返す。
+       * 渡された board は変更しない。
+       * @param {string[][]} board 盤面
+       * @returns {{row: number, col: number}|null} 空交点の座標、無ければ null
+       */
+      function randomEmptyCell(board) {
+        const empties = collectEmptyCells(board);
+        if (empties.length === 0) {
+          return null;
+        }
+        return empties[randomInt(empties.length)];
+      }
+
+      /**
+       * 行または列の少なくとも一方が 0〜14 の範囲外の整数となる座標を返す。
+       * 他方は範囲内の整数になり得る（両方が範囲外になることもある）。
+       * いずれの値も整数であり、非整数（小数・null 等）は含まない。
+       * @returns {{row: number, col: number}} 範囲外座標
+       */
+      function randomOutOfBoundsCoord() {
+        const outChoices = [-1, -2, -5, -100, BOARD_SIZE, BOARD_SIZE + 1, 20, 100];
+        const outOfBoundsInt = function () {
+          return outChoices[randomInt(outChoices.length)];
+        };
+        const which = randomInt(3); // 0:行のみ 1:列のみ 2:両方
+        if (which === 0) {
+          return { row: outOfBoundsInt(), col: randomInt(BOARD_SIZE) };
+        }
+        if (which === 1) {
+          return { row: randomInt(BOARD_SIZE), col: outOfBoundsInt() };
+        }
+        return { row: outOfBoundsInt(), col: outOfBoundsInt() };
+      }
+
+      /**
+       * 行または列の少なくとも一方が整数でない不正な値となる座標を返す。
+       * 不正値は小数・null・undefined・NaN・文字列の集合から選ぶ。
+       * 他方は範囲内の整数になり得る（両方が不正値になることもある）。
+       * @returns {{row: *, col: *}} 不正座標
+       */
+      function randomInvalidCoord() {
+        const invalidChoices = [1.5, 2.7, -0.5, null, undefined, NaN, '3', '0'];
+        const invalidValue = function () {
+          return invalidChoices[randomInt(invalidChoices.length)];
+        };
+        const which = randomInt(3); // 0:行のみ 1:列のみ 2:両方
+        if (which === 0) {
+          return { row: invalidValue(), col: randomInt(BOARD_SIZE) };
+        }
+        if (which === 1) {
+          return { row: randomInt(BOARD_SIZE), col: invalidValue() };
+        }
+        return { row: invalidValue(), col: invalidValue() };
+      }
+
+      /**
+       * 任意の色・方向・盤内開始位置から 5 連となる着手構成情報を生成する。
+       *
+       * DIRECTIONS からランダムに 1 方向を選び、その方向へ 5 交点すべてが盤内に
+       * 収まる開始位置を選ぶ。返り値には、5 連を構成する 5 交点の座標列と、
+       * 置くべき色・CellState・期待される勝ち Game_Status を含める。
+       * 呼び出し側はこの情報を使って 5 つの同色石を配置できる。
+       * 本関数は状態を持たず、渡された引数も変更しない。
+       * @returns {{
+       *   color: string,
+       *   cell: string,
+       *   win: string,
+       *   dir: {dr: number, dc: number},
+       *   cells: {row: number, col: number}[]
+       * }} 5 連構成情報（cells は開始から方向順の 5 交点）
+       */
+      function randomFiveSetup() {
+        const colorCases = [
+          { color: Color.BLACK, cell: CellState.BLACK, win: GameStatus.BLACK_WIN },
+          { color: Color.WHITE, cell: CellState.WHITE, win: GameStatus.WHITE_WIN },
+        ];
+        const cc = colorCases[randomInt(colorCases.length)];
+        const dir = DIRECTIONS[randomInt(DIRECTIONS.length)];
+        const dr = dir.dr;
+        const dc = dir.dc;
+
+        // 5 連（k=0..4 の start + k*dir）がすべて盤内に収まる開始位置を選ぶ。
+        // dr は 0 か 1、dc は -1 / 0 / 1（DIRECTIONS の定義に依存）。
+        const rowMax = BOARD_SIZE - 1 - 4 * dr; // dr>=0 前提
+        const row0 = randomInt(rowMax + 1);
+        let col0;
+        if (dc === 1) {
+          col0 = randomInt(BOARD_SIZE - 4);      // 0 .. BOARD_SIZE-5
+        } else if (dc === -1) {
+          col0 = 4 + randomInt(BOARD_SIZE - 4);  // 4 .. BOARD_SIZE-1
+        } else {
+          col0 = randomInt(BOARD_SIZE);          // 0 .. BOARD_SIZE-1
+        }
+
+        const cells = [];
+        for (let k = 0; k < WIN_LENGTH; k++) {
+          cells.push({ row: row0 + k * dr, col: col0 + k * dc });
+        }
+
+        return {
+          color: cc.color,
+          cell: cc.cell,
+          win: cc.win,
+          dir: { dr: dr, dc: dc },
+          cells: cells,
+        };
+      }
+
+      return {
+        randomInt: randomInt,
+        randomInProgressState: randomInProgressState,
+        randomEmptyCell: randomEmptyCell,
+        randomOutOfBoundsCoord: randomOutOfBoundsCoord,
+        randomInvalidCoord: randomInvalidCoord,
+        randomFiveSetup: randomFiveSetup,
+      };
+    })();
+
+    /* --- プロパティテスト -------------------------------------------- */
+
+    // Feature: goboard, Property 8: 新しいゲームの生成は既存状態に依存しない
+    // 任意の着手列を適用した後の GameState が存在しても、createGame() は常に
+    // 全 225 交点が空・Current_Turn が黒・Game_Status が進行中である
+    // 同一の初期状態を返す（かつ毎回別インスタンス）。
+    // Validates: Requirements 1.5
+    test('Property 8: createGame は既存状態に依存せず初期状態を返す', function () {
+      // このテスト専用の局所ランダムヘルパ。
+      // Task 5.2 の専用ジェネレータが後で置き換え/共存できるよう、
+      // ここに閉じた形で最小限に定義する。
+      const randomInt = function (n) {
+        return Math.floor(Math.random() * n);
+      };
+
+      // createGame() から N 手の有効着手をランダムに適用し、
+      // 進行中っぽい状態を作る。無効・終局結果はスキップする。
+      const buildRandomState = function (moveCount) {
+        let state = GoBoardLogic.createGame();
+        for (let i = 0; i < moveCount; i++) {
+          if (state.status !== GameStatus.IN_PROGRESS) {
+            break;
+          }
+          const row = randomInt(BOARD_SIZE);
+          const col = randomInt(BOARD_SIZE);
+          const result = GoBoardLogic.placeStone(state, row, col);
+          if (result.valid) {
+            state = result.state;
+          }
+          // 無効（既石など）ならその手はスキップし、同じ state を維持する。
+        }
+        return state;
+      };
+
+      const ITERATIONS = 100;
+      for (let iter = 0; iter < ITERATIONS; iter++) {
+        // 0〜19 手のランダムな事前状態を構築する。
+        const prior = buildRandomState(randomInt(20));
+
+        // 事前状態の有無にかかわらず、createGame() は常に同一の初期状態を返す。
+        const fresh = GoBoardLogic.createGame();
+
+        // 全 225 交点が空であること。
+        assertEqual(fresh.board.length, BOARD_SIZE, 'board 行数');
+        for (let row = 0; row < BOARD_SIZE; row++) {
+          assertEqual(fresh.board[row].length, BOARD_SIZE, 'board 列数');
+          for (let col = 0; col < BOARD_SIZE; col++) {
+            assertEqual(
+              fresh.board[row][col],
+              CellState.EMPTY,
+              '交点(' + row + ',' + col + ') が空'
+            );
+          }
+        }
+
+        // Current_Turn が黒、Game_Status が進行中であること。
+        assertEqual(fresh.currentTurn, Color.BLACK, 'currentTurn');
+        assertEqual(fresh.status, GameStatus.IN_PROGRESS, 'status');
+
+        // 事前状態とは別インスタンスの、真新しいオブジェクトであること。
+        if (fresh === prior) {
+          throw new Error('createGame() が事前状態と同一インスタンスを返した');
+        }
+        if (fresh.board === prior.board) {
+          throw new Error('createGame() が事前状態と同一の board を返した');
+        }
+      }
+    });
+
+    // Feature: goboard, Property 4: いずれかの方向に 5 連が揃うと対応する色の勝ちになる
+    // 任意の色（黒・白）・任意の方向（縦・横・右上がり斜め・右下がり斜め）・
+    // 盤内に収まる任意の開始位置について、その方向へ同じ色の石が 5 つ連続する
+    // 着手列を適用すると、最後の着手の後に Game_Status がその色の勝ち
+    // （黒なら BLACK_WIN、白なら WHITE_WIN）になる。
+    //
+    // placeStone は手番を自動で交互に切り替えるため、同色 5 連を placeStone のみで
+    // 直接作ることはできない。そこで、5 連を構成する 5 交点のうち 4 交点に該当色を
+    // 直接（CellState を設定して）先置きし、currentTurn を該当色・status を IN_PROGRESS
+    // とした GameState を組み立て、残る 1 交点（ランダムに選んだ「最後の着手」）に対して
+    // GoBoardLogic.placeStone を呼び出して勝敗判定経路を検証する。
+    // Validates: Requirements 4.1, 4.2, 4.3, 4.4
+    test('Property 4: いずれかの方向に 5 連が揃うと対応する色の勝ちになる', function () {
+      const randomInt = function (n) {
+        return Math.floor(Math.random() * n);
+      };
+
+      // 検証対象の色・CellState・期待する勝ち Game_Status の組。
+      const colorCases = [
+        { color: Color.BLACK, cell: CellState.BLACK, win: GameStatus.BLACK_WIN },
+        { color: Color.WHITE, cell: CellState.WHITE, win: GameStatus.WHITE_WIN },
+      ];
+
+      const ITERATIONS = 120; // 最低 100 回のランダム反復
+      for (let iter = 0; iter < ITERATIONS; iter++) {
+        // 1. 色と方向をランダムに選ぶ。
+        const cc = colorCases[randomInt(colorCases.length)];
+        const dir = DIRECTIONS[randomInt(DIRECTIONS.length)];
+        const dr = dir.dr;
+        const dc = dir.dc;
+
+        // 2. 5 連（k=0..4 の start + k*dir）がすべて盤内に収まる開始位置を選ぶ。
+        //    行方向: 0 <= r0 + 4*dr <= BOARD_SIZE-1（dr は 0 か 1）。
+        //    列方向: dc により取りうる範囲が変わる（dc は -1 / 0 / 1）。
+        //      dc =  1 → 0 <= c0, c0 + 4 <= BOARD_SIZE-1
+        //      dc =  0 → 0 <= c0 <= BOARD_SIZE-1
+        //      dc = -1 → 0 <= c0 - 4, c0 <= BOARD_SIZE-1
+        const rowMax = BOARD_SIZE - 1 - 4 * dr; // dr>=0 前提
+        const row0 = randomInt(rowMax + 1);
+        let col0;
+        if (dc === 1) {
+          col0 = randomInt(BOARD_SIZE - 4); // 0 .. BOARD_SIZE-5
+        } else if (dc === -1) {
+          col0 = 4 + randomInt(BOARD_SIZE - 4); // 4 .. BOARD_SIZE-1
+        } else {
+          col0 = randomInt(BOARD_SIZE); // 0 .. BOARD_SIZE-1
+        }
+
+        // 3. 5 連を構成する 5 交点を算出する。
+        const cells = [];
+        for (let k = 0; k < WIN_LENGTH; k++) {
+          cells.push({ r: row0 + k * dr, c: col0 + k * dc });
+        }
+
+        // 4. どの交点を「最後の着手」にするかをランダムに選ぶ（残り 4 交点を先置き）。
+        const finalIndex = randomInt(WIN_LENGTH);
+
+        // 5. 新しい盤を作り、最後の着手以外の 4 交点へ該当色を直接置く。
+        const state = GoBoardLogic.createGame();
+        for (let k = 0; k < WIN_LENGTH; k++) {
+          if (k === finalIndex) {
+            continue;
+          }
+          state.board[cells[k].r][cells[k].c] = cc.cell;
+        }
+        // 手番を該当色にして、最後の 1 手をその色で着手できるようにする。
+        state.currentTurn = cc.color;
+        state.status = GameStatus.IN_PROGRESS;
+
+        // 6. 最後の交点へ着手する。
+        const fr = cells[finalIndex].r;
+        const fc = cells[finalIndex].c;
+        const result = GoBoardLogic.placeStone(state, fr, fc);
+
+        const ctx = '色=' + cc.color + ' 方向={dr:' + dr + ',dc:' + dc + '}' +
+          ' start=(' + row0 + ',' + col0 + ') finalIndex=' + finalIndex +
+          ' final=(' + fr + ',' + fc + ')';
+
+        // 着手は有効で、Game_Status は該当色の勝ちになる。
+        assertEqual(result.valid, true, '着手が有効 [' + ctx + ']');
+        assertEqual(result.state.status, cc.win, '勝ち Game_Status [' + ctx + ']');
+      }
+    });
+
+    // Feature: goboard, Property 5: 複数方向で同時に 5 連が成立しても勝ちは単一の結果になる
+    // 任意の色について、その色の石が複数の方向で同時に 5 連を成立させる着手をしたとき、
+    // Game_Status はその色の勝ち 1 つ（黒なら BLACK_WIN、白なら WHITE_WIN）に設定され、
+    // 他方の色の勝ちや引き分けと矛盾しない単一の結果になる。
+    //
+    // 検証構成: 盤内に安全に収まる中心交点 (r,c) を選び（r・c を 4〜10 に取れば
+    // 縦・横・両斜めのいずれでも中心±2 のオフセットが盤内に収まる）、DIRECTIONS から
+    // 相異なる 2 方向を選ぶ。各方向について中心を含む 5 連の残り 4 交点（オフセット
+    // -2,-1,+1,+2）に該当色を先置きし、currentTurn を該当色・status を IN_PROGRESS と
+    // した GameState を組み立て、中心 (r,c) へ placeStone を呼ぶ。これにより中心の着手が
+    // 2 方向で同時に 5 連を成立させる。
+    // Validates: Requirements 4.5
+    test('Property 5: 複数方向で同時に 5 連が成立しても勝ちは単一の結果になる', function () {
+      const randomInt = function (n) {
+        return Math.floor(Math.random() * n);
+      };
+
+      const colorCases = [
+        { color: Color.BLACK, cell: CellState.BLACK, win: GameStatus.BLACK_WIN },
+        { color: Color.WHITE, cell: CellState.WHITE, win: GameStatus.WHITE_WIN },
+      ];
+
+      const ITERATIONS = 120; // 最低 100 回のランダム反復
+      for (let iter = 0; iter < ITERATIONS; iter++) {
+        // 1. 色をランダムに選ぶ。
+        const cc = colorCases[randomInt(colorCases.length)];
+
+        // 2. 中心交点を 4〜10 の安全な範囲で選ぶ。
+        //    中心±2 のオフセットが縦・横・両斜めのいずれでも盤内に収まる。
+        const cr = 4 + randomInt(7); // 4 .. 10
+        const ccol = 4 + randomInt(7); // 4 .. 10
+
+        // 3. 相異なる 2 方向をランダムに選ぶ。
+        const d1 = randomInt(DIRECTIONS.length);
+        let d2 = randomInt(DIRECTIONS.length);
+        while (d2 === d1) {
+          d2 = randomInt(DIRECTIONS.length);
+        }
+        const dirs = [DIRECTIONS[d1], DIRECTIONS[d2]];
+
+        // 4. 盤面を作り、中心を含む 5 連の残り 4 交点（オフセット -2,-1,+1,+2）に
+        //    2 方向とも該当色を先置きする。中心 (cr,ccol) は最後の着手として空のまま残す。
+        const state = GoBoardLogic.createGame();
+        for (let i = 0; i < dirs.length; i++) {
+          const dr = dirs[i].dr;
+          const dc = dirs[i].dc;
+          for (let k = -2; k <= 2; k++) {
+            if (k === 0) {
+              continue; // 中心は placeStone で置く
+            }
+            state.board[cr + k * dr][ccol + k * dc] = cc.cell;
+          }
+        }
+        state.currentTurn = cc.color;
+        state.status = GameStatus.IN_PROGRESS;
+
+        // 5. 中心へ着手する。2 方向で同時に 5 連が成立する。
+        const result = GoBoardLogic.placeStone(state, cr, ccol);
+
+        const ctx = '色=' + cc.color + ' 中心=(' + cr + ',' + ccol + ')' +
+          ' 方向1={dr:' + dirs[0].dr + ',dc:' + dirs[0].dc + '}' +
+          ' 方向2={dr:' + dirs[1].dr + ',dc:' + dirs[1].dc + '}';
+
+        // 着手は有効で、Game_Status は該当色の単一の勝ちになる。
+        assertEqual(result.valid, true, '着手が有効 [' + ctx + ']');
+        assertEqual(result.state.status, cc.win, '単一の勝ち Game_Status [' + ctx + ']');
+
+        // 結果は BLACK_WIN / WHITE_WIN のいずれか単一で、DRAW や他方の勝ちと矛盾しない。
+        const isSingleWin =
+          result.state.status === GameStatus.BLACK_WIN ||
+          result.state.status === GameStatus.WHITE_WIN;
+        assertEqual(isSingleWin, true, '結果が単一の勝ち値 [' + ctx + ']');
+      }
+    });
+
+    // Feature: goboard, Property 1: 有効着手は手番の色の石を配置する
+    // 任意の進行中 GameState と、その盤面の任意の空の交点について、その交点へ
+    // 着手すると、当該交点は着手直前の Current_Turn の色（手番が黒なら
+    // CellState.BLACK、白なら CellState.WHITE）になり、かつ result.valid が true になる。
+    //
+    // 検証構成: createGame() からランダムな有効着手を N 手適用して進行中の
+    // GameState を作る（無効・終局結果はスキップ）。生成した状態の盤面から
+    // ランダムに空の交点を 1 つ選び、着手直前の currentTurn を記録してから
+    // placeStone を呼ぶ。生成状態に空交点が無い、または進行中でない場合は
+    // その反復をスキップして状態を作り直す。
+    // Validates: Requirements 2.1, 3.5
+    test('Property 1: 有効着手は手番の色の石を配置する', function () {
+      const randomInt = function (n) {
+        return Math.floor(Math.random() * n);
+      };
+
+      // createGame() から moveCount 手の有効着手をランダムに適用し、
+      // 進行中の状態を作る。無効（既石など）・終局結果はスキップする。
+      const buildRandomState = function (moveCount) {
+        let state = GoBoardLogic.createGame();
+        for (let i = 0; i < moveCount; i++) {
+          if (state.status !== GameStatus.IN_PROGRESS) {
+            break;
+          }
+          const row = randomInt(BOARD_SIZE);
+          const col = randomInt(BOARD_SIZE);
+          const result = GoBoardLogic.placeStone(state, row, col);
+          if (result.valid) {
+            state = result.state;
+          }
+          // 無効な手（既石など）は同じ state を保って読み飛ばす。
+        }
+        return state;
+      };
+
+      // 盤面上の空交点をすべて集める。
+      const collectEmptyCells = function (board) {
+        const cells = [];
+        for (let row = 0; row < BOARD_SIZE; row++) {
+          for (let col = 0; col < BOARD_SIZE; col++) {
+            if (board[row][col] === CellState.EMPTY) {
+              cells.push({ r: row, c: col });
+            }
+          }
+        }
+        return cells;
+      };
+
+      const ITERATIONS = 120; // 最低 100 回のランダム反復
+      let checked = 0;
+      let attempts = 0;
+      const maxAttempts = ITERATIONS * 10; // 生成失敗による無限ループ防止
+      while (checked < ITERATIONS && attempts < maxAttempts) {
+        attempts++;
+
+        // 0〜19 手のランダムな進行中状態を作る。
+        const state = buildRandomState(randomInt(20));
+
+        // 進行中でなければこの反復はスキップして作り直す。
+        if (state.status !== GameStatus.IN_PROGRESS) {
+          continue;
+        }
+
+        // 空の交点が無ければスキップして作り直す。
+        const empties = collectEmptyCells(state.board);
+        if (empties.length === 0) {
+          continue;
+        }
+
+        // ランダムに空の交点を 1 つ選ぶ。
+        const pick = empties[randomInt(empties.length)];
+        const r = pick.r;
+        const c = pick.c;
+
+        // 着手直前の手番を記録する。
+        const beforeTurn = state.currentTurn;
+        const expectedCell = beforeTurn === Color.BLACK ? CellState.BLACK : CellState.WHITE;
+
+        // 空交点へ着手する。
+        const result = GoBoardLogic.placeStone(state, r, c);
+
+        const ctx = '手番=' + beforeTurn + ' 着手=(' + r + ',' + c + ')';
+
+        // 着手は有効で、当該交点は手番の色になる。
+        assertEqual(result.valid, true, '着手が有効 [' + ctx + ']');
+        assertEqual(
+          result.state.board[r][c],
+          expectedCell,
+          '交点(' + r + ',' + c + ') が手番の色 [' + ctx + ']'
+        );
+
+        checked++;
+      }
+
+      // 反復回数が最低ラインに達していることを確認する。
+      assertEqual(checked >= 100, true, '最低 100 回の反復を実施 (実施 ' + checked + ' 回)');
+    });
+
+    // Feature: goboard, Property 2: 有効かつ非決着の着手は手番を他方へ切り替える
+    // 任意の進行中 GameState と任意の空の交点について、その着手が勝敗・引き分けの
+    // いずれにもならない（result.state.status === IN_PROGRESS）場合、着手後の
+    // Current_Turn は着手直前の Current_Turn の他方の色（nextTurn(beforeTurn)）になる。
+    //
+    // 検証構成: createGame() からランダムな有効着手を N 手適用して進行中の
+    // GameState を作る（無効・終局結果はスキップ）。生成状態の盤面からランダムに
+    // 空の交点を 1 つ選び、着手直前の currentTurn を記録してから placeStone を呼ぶ。
+    // result.valid が true かつ result.state.status === IN_PROGRESS のときのみ
+    // 手番が他方へ切り替わったことを検証する。着手でゲームが終了した（勝ち・引き分け）
+    // 反復は本プロパティの対象外としてアサーションをスキップし、非終局の有効着手が
+    // 最低 100 回検証されるまで反復する。
+    // Validates: Requirements 2.4
+    test('Property 2: 有効かつ非決着の着手は手番を他方へ切り替える', function () {
+      const randomInt = function (n) {
+        return Math.floor(Math.random() * n);
+      };
+
+      // createGame() から moveCount 手の有効着手をランダムに適用し、
+      // 進行中の状態を作る。無効（既石など）・終局結果はスキップする。
+      const buildRandomState = function (moveCount) {
+        let state = GoBoardLogic.createGame();
+        for (let i = 0; i < moveCount; i++) {
+          if (state.status !== GameStatus.IN_PROGRESS) {
+            break;
+          }
+          const row = randomInt(BOARD_SIZE);
+          const col = randomInt(BOARD_SIZE);
+          const result = GoBoardLogic.placeStone(state, row, col);
+          if (result.valid) {
+            state = result.state;
+          }
+          // 無効な手（既石など）は同じ state を保って読み飛ばす。
+        }
+        return state;
+      };
+
+      // 盤面上の空交点をすべて集める。
+      const collectEmptyCells = function (board) {
+        const cells = [];
+        for (let row = 0; row < BOARD_SIZE; row++) {
+          for (let col = 0; col < BOARD_SIZE; col++) {
+            if (board[row][col] === CellState.EMPTY) {
+              cells.push({ r: row, c: col });
+            }
+          }
+        }
+        return cells;
+      };
+
+      const ITERATIONS = 120; // 最低 100 回の「非終局の有効着手」を検証する
+      let checked = 0;        // 非終局の有効着手として検証した回数
+      let attempts = 0;
+      const maxAttempts = ITERATIONS * 50; // 生成失敗・終局着手による無限ループ防止
+      while (checked < ITERATIONS && attempts < maxAttempts) {
+        attempts++;
+
+        // 0〜19 手のランダムな進行中状態を作る。
+        const state = buildRandomState(randomInt(20));
+
+        // 進行中でなければこの反復はスキップして作り直す。
+        if (state.status !== GameStatus.IN_PROGRESS) {
+          continue;
+        }
+
+        // 空の交点が無ければスキップして作り直す。
+        const empties = collectEmptyCells(state.board);
+        if (empties.length === 0) {
+          continue;
+        }
+
+        // ランダムに空の交点を 1 つ選ぶ。
+        const pick = empties[randomInt(empties.length)];
+        const r = pick.r;
+        const c = pick.c;
+
+        // 着手直前の手番を記録する。
+        const beforeTurn = state.currentTurn;
+        const expectedTurn = beforeTurn === Color.BLACK ? Color.WHITE : Color.BLACK;
+
+        // 空交点へ着手する。
+        const result = GoBoardLogic.placeStone(state, r, c);
+
+        // 有効着手のみを対象とする。空交点への着手なので基本的に valid。
+        if (!result.valid) {
+          continue;
+        }
+
+        // 着手でゲームが終了した（勝ち・引き分け）反復は本プロパティの対象外。
+        if (result.state.status !== GameStatus.IN_PROGRESS) {
+          continue;
+        }
+
+        const ctx = '手番=' + beforeTurn + ' 着手=(' + r + ',' + c + ')';
+
+        // 非決着の有効着手なので、手番は他方の色へ切り替わる。
+        assertEqual(
+          result.state.currentTurn,
+          expectedTurn,
+          '手番が他方へ切替 [' + ctx + ']'
+        );
+
+        checked++;
+      }
+
+      // 非終局の有効着手を最低 100 回検証していることを確認する。
+      assertEqual(checked >= 100, true, '最低 100 回の非終局有効着手を検証 (検証 ' + checked + ' 回)');
+    });
+
+    // Feature: goboard, Property 3: 無効な着手は状態を変えず対応する理由を返す
+    // 任意の GameState と、以下 4 カテゴリのいずれかに該当する無効な着手について、
+    // result.valid === false であり、入力状態の盤面と Current_Turn は着手呼び出しの
+    // 前後で変化せず（呼び出し前のスナップショットと深く等しい）、result.reason が
+    // カテゴリに対応する理由コードになる。
+    //   - 既石（進行中状態で、対象交点に既に石がある）           → OCCUPIED
+    //   - 行または列が整数だが 0〜14 の範囲外                     → OUT_OF_BOUNDS
+    //   - 行または列が整数でない値（小数・null・undefined・NaN・文字列） → INVALID_COORDINATE
+    //   - Game_Status が IN_PROGRESS 以外（BLACK_WIN/WHITE_WIN/DRAW） → NOT_IN_PROGRESS
+    //     （この理由が最優先。placeStone は最初に status を検査する）
+    //
+    // placeStone が入力を破壊しないことも検証する。呼び出し前に入力状態の
+    // {board, currentTurn} を JSON 文字列化してスナップショットを取り、呼び出し後に
+    // 入力状態が不変であること、および result.state の board / currentTurn が入力と
+    // 内容一致であることをアサートする。
+    // Validates: Requirements 2.2, 2.3, 3.1, 3.2, 3.3, 3.4, 4.6, 5.3, 5.4, 6.2, 6.3, 6.4
+    test('Property 3: 無効な着手は状態を変えず対応する理由を返す', function () {
+      const randomInt = function (n) {
+        return Math.floor(Math.random() * n);
+      };
+
+      // createGame() から moveCount 手の有効着手をランダムに適用し、
+      // 進行中の状態を作る。無効（既石など）・終局結果はスキップする。
+      const buildRandomState = function (moveCount) {
+        let state = GoBoardLogic.createGame();
+        for (let i = 0; i < moveCount; i++) {
+          if (state.status !== GameStatus.IN_PROGRESS) {
+            break;
+          }
+          const row = randomInt(BOARD_SIZE);
+          const col = randomInt(BOARD_SIZE);
+          const result = GoBoardLogic.placeStone(state, row, col);
+          if (result.valid) {
+            state = result.state;
+          }
+          // 無効な手（既石など）は同じ state を保って読み飛ばす。
+        }
+        return state;
+      };
+
+      // 盤面上の既石（EMPTY でない）交点をすべて集める。
+      const collectOccupiedCells = function (board) {
+        const cells = [];
+        for (let row = 0; row < BOARD_SIZE; row++) {
+          for (let col = 0; col < BOARD_SIZE; col++) {
+            if (board[row][col] !== CellState.EMPTY) {
+              cells.push({ r: row, c: col });
+            }
+          }
+        }
+        return cells;
+      };
+
+      // 少なくとも 1 つ石がある進行中状態を作る。無ければ数手打って石を作る。
+      const buildInProgressWithStone = function () {
+        let state = buildRandomState(1 + randomInt(19));
+        // 進行中でない、または石が 1 つも無ければ、明示的に数手打ち直す。
+        let guard = 0;
+        while ((state.status !== GameStatus.IN_PROGRESS ||
+                collectOccupiedCells(state.board).length === 0) && guard < 50) {
+          guard++;
+          state = GoBoardLogic.createGame();
+          // 中央付近に 1〜3 手、確実に有効な着手を打つ。
+          const moves = 1 + randomInt(3);
+          for (let m = 0; m < moves; m++) {
+            if (state.status !== GameStatus.IN_PROGRESS) {
+              break;
+            }
+            const r = randomInt(BOARD_SIZE);
+            const c = randomInt(BOARD_SIZE);
+            const res = GoBoardLogic.placeStone(state, r, c);
+            if (res.valid) {
+              state = res.state;
+            }
+          }
+        }
+        return state;
+      };
+
+      // 整数だが 0〜14 の範囲外の値を返す。
+      const outOfBoundsInt = function () {
+        const choices = [-1, -2, -5, 15, 16, 20, 100, -100];
+        return choices[randomInt(choices.length)];
+      };
+
+      // 整数でない不正な座標値を返す（小数・null・undefined・NaN・文字列）。
+      const invalidCoord = function () {
+        const choices = [1.5, null, undefined, NaN, '3', 2.7, '0', -0.5];
+        return choices[randomInt(choices.length)];
+      };
+
+      // 進行中以外の終局 Game_Status。
+      const finishedStatuses = [
+        GameStatus.BLACK_WIN,
+        GameStatus.WHITE_WIN,
+        GameStatus.DRAW,
+      ];
+
+      const ITERATIONS = 120; // 最低 100 回のランダム反復
+      // 各カテゴリが最低 1 回は実行されたことを確認するためのカウンタ。
+      const exercised = {
+        OCCUPIED: 0,
+        OUT_OF_BOUNDS: 0,
+        INVALID_COORDINATE: 0,
+        NOT_IN_PROGRESS: 0,
+      };
+      const categories = ['OCCUPIED', 'OUT_OF_BOUNDS', 'INVALID_COORDINATE', 'NOT_IN_PROGRESS'];
+
+      for (let iter = 0; iter < ITERATIONS; iter++) {
+        // 全カテゴリを確実に網羅するため、前半はカテゴリを巡回し、
+        // 後半はランダムに選ぶ。
+        const category = iter < categories.length
+          ? categories[iter]
+          : categories[randomInt(categories.length)];
+
+        let state;
+        let row;
+        let col;
+        let expectedReason;
+
+        if (category === 'OCCUPIED') {
+          // 進行中かつ石が少なくとも 1 つある状態を作り、既石の交点を選ぶ。
+          state = buildInProgressWithStone();
+          const occupied = collectOccupiedCells(state.board);
+          const pick = occupied[randomInt(occupied.length)];
+          row = pick.r;
+          col = pick.c;
+          expectedReason = InvalidReason.OCCUPIED;
+        } else if (category === 'OUT_OF_BOUNDS') {
+          // 進行中状態で、行または列の少なくとも一方を範囲外の整数にする。
+          state = buildRandomState(randomInt(10));
+          if (state.status !== GameStatus.IN_PROGRESS) {
+            state = GoBoardLogic.createGame();
+          }
+          // 少なくとも一方を範囲外にする（両方でも可）。
+          const which = randomInt(3); // 0:行のみ 1:列のみ 2:両方
+          if (which === 0) {
+            row = outOfBoundsInt();
+            col = randomInt(BOARD_SIZE);
+          } else if (which === 1) {
+            row = randomInt(BOARD_SIZE);
+            col = outOfBoundsInt();
+          } else {
+            row = outOfBoundsInt();
+            col = outOfBoundsInt();
+          }
+          expectedReason = InvalidReason.OUT_OF_BOUNDS;
+        } else if (category === 'INVALID_COORDINATE') {
+          // 進行中状態で、行または列の少なくとも一方を非整数の不正値にする。
+          state = buildRandomState(randomInt(10));
+          if (state.status !== GameStatus.IN_PROGRESS) {
+            state = GoBoardLogic.createGame();
+          }
+          const which = randomInt(3); // 0:行のみ 1:列のみ 2:両方
+          if (which === 0) {
+            row = invalidCoord();
+            col = randomInt(BOARD_SIZE);
+          } else if (which === 1) {
+            row = randomInt(BOARD_SIZE);
+            col = invalidCoord();
+          } else {
+            row = invalidCoord();
+            col = invalidCoord();
+          }
+          expectedReason = InvalidReason.INVALID_COORDINATE;
+        } else {
+          // NOT_IN_PROGRESS: 終局状態を作る。status を手動で設定する。
+          // 座標は任意（範囲内でも範囲外でもよい）。status 検査が最優先のため
+          // NOT_IN_PROGRESS が返る。
+          state = GoBoardLogic.createGame();
+          state.status = finishedStatuses[randomInt(finishedStatuses.length)];
+          row = randomInt(BOARD_SIZE);
+          col = randomInt(BOARD_SIZE);
+          expectedReason = InvalidReason.NOT_IN_PROGRESS;
+        }
+
+        // 呼び出し前に入力状態の {board, currentTurn} をスナップショットする。
+        const beforeSnapshot = JSON.stringify({
+          board: state.board,
+          currentTurn: state.currentTurn,
+        });
+
+        const result = GoBoardLogic.placeStone(state, row, col);
+
+        const ctx = 'カテゴリ=' + category +
+          ' 着手=(' + String(row) + ',' + String(col) + ')' +
+          ' status=' + state.status;
+
+        // 1. 着手は無効。
+        assertEqual(result.valid, false, '着手が無効 [' + ctx + ']');
+
+        // 2. 理由はカテゴリに対応する。
+        assertEqual(result.reason, expectedReason, '無効理由 [' + ctx + ']');
+
+        // 3. 入力状態の board / currentTurn は呼び出し前後で不変（破壊されない）。
+        const afterSnapshot = JSON.stringify({
+          board: state.board,
+          currentTurn: state.currentTurn,
+        });
+        assertEqual(afterSnapshot, beforeSnapshot, '入力状態が不変 [' + ctx + ']');
+
+        // 4. result.state の board / currentTurn は入力と内容一致。
+        assertEqual(
+          JSON.stringify(result.state.board),
+          JSON.stringify(state.board),
+          'result.state.board が入力と一致 [' + ctx + ']'
+        );
+        assertEqual(
+          result.state.currentTurn,
+          state.currentTurn,
+          'result.state.currentTurn が入力と一致 [' + ctx + ']'
+        );
+
+        exercised[category]++;
+      }
+
+      // 4 カテゴリすべてが最低 1 回は実行されたことを確認する。
+      assertEqual(exercised.OCCUPIED >= 1, true,
+        'OCCUPIED を検証 (実施 ' + exercised.OCCUPIED + ' 回)');
+      assertEqual(exercised.OUT_OF_BOUNDS >= 1, true,
+        'OUT_OF_BOUNDS を検証 (実施 ' + exercised.OUT_OF_BOUNDS + ' 回)');
+      assertEqual(exercised.INVALID_COORDINATE >= 1, true,
+        'INVALID_COORDINATE を検証 (実施 ' + exercised.INVALID_COORDINATE + ' 回)');
+      assertEqual(exercised.NOT_IN_PROGRESS >= 1, true,
+        'NOT_IN_PROGRESS を検証 (実施 ' + exercised.NOT_IN_PROGRESS + ' 回)');
+    });
+
+    // Feature: goboard, Property 6: 有効着手は着手した交点以外の既存の石を変更しない
+    // 任意の進行中 GameState と、その盤面の任意の空の交点への有効着手について、
+    // 着手後の盤面では「着手した交点」を除くすべての交点が着手前の盤面と等しい。
+    // すなわち既存の石の色は変わらず、着手交点以外の空の交点も空のまま保たれる。
+    // また placeStone は入力状態を破壊しない（呼び出し前後で入力盤面は不変）。
+    //
+    // 検証構成: createGame() からランダムな有効着手を N 手適用して進行中の
+    // GameState を作る（無効・終局結果はスキップ）。生成状態の盤面からランダムに
+    // 空の交点 (r,c) を 1 つ選び、着手前の盤面を JSON でスナップショットしてから
+    // placeStone を呼ぶ。result.valid が true であることを要求し、着手交点以外の
+    // 全交点が着手前と一致すること、着手交点は手番の色になったこと、および入力
+    // 盤面が呼び出し前後で不変であることをアサートする。生成状態が進行中でない、
+    // または空交点が無い反復はスキップし、最低 100 回の有効着手を検証する。
+    // Validates: Requirements 6.1
+    test('Property 6: 有効着手は着手した交点以外の既存の石を変更しない', function () {
+      const randomInt = function (n) {
+        return Math.floor(Math.random() * n);
+      };
+
+      // createGame() から moveCount 手の有効着手をランダムに適用し、
+      // 進行中の状態を作る。無効（既石など）・終局結果はスキップする。
+      const buildRandomState = function (moveCount) {
+        let state = GoBoardLogic.createGame();
+        for (let i = 0; i < moveCount; i++) {
+          if (state.status !== GameStatus.IN_PROGRESS) {
+            break;
+          }
+          const row = randomInt(BOARD_SIZE);
+          const col = randomInt(BOARD_SIZE);
+          const result = GoBoardLogic.placeStone(state, row, col);
+          if (result.valid) {
+            state = result.state;
+          }
+          // 無効な手（既石など）は同じ state を保って読み飛ばす。
+        }
+        return state;
+      };
+
+      // 盤面上の空交点をすべて集める。
+      const collectEmptyCells = function (board) {
+        const cells = [];
+        for (let row = 0; row < BOARD_SIZE; row++) {
+          for (let col = 0; col < BOARD_SIZE; col++) {
+            if (board[row][col] === CellState.EMPTY) {
+              cells.push({ r: row, c: col });
+            }
+          }
+        }
+        return cells;
+      };
+
+      const ITERATIONS = 120; // 最低 100 回のランダム反復
+      let checked = 0;
+      let attempts = 0;
+      const maxAttempts = ITERATIONS * 10; // 生成失敗による無限ループ防止
+      while (checked < ITERATIONS && attempts < maxAttempts) {
+        attempts++;
+
+        // 0〜19 手のランダムな進行中状態を作る。
+        const state = buildRandomState(randomInt(20));
+
+        // 進行中でなければこの反復はスキップして作り直す。
+        if (state.status !== GameStatus.IN_PROGRESS) {
+          continue;
+        }
+
+        // 空の交点が無ければスキップして作り直す。
+        const empties = collectEmptyCells(state.board);
+        if (empties.length === 0) {
+          continue;
+        }
+
+        // ランダムに空の交点を 1 つ選ぶ。
+        const pick = empties[randomInt(empties.length)];
+        const r = pick.r;
+        const c = pick.c;
+
+        // 着手前の盤面を深くスナップショットする（各行を複製）。
+        const preBoard = state.board.map(function (cells) {
+          return cells.slice();
+        });
+        // 入力破壊検出用に、入力状態の board 全体も JSON でスナップショットする。
+        const beforeInputSnapshot = JSON.stringify(state.board);
+
+        // 着手直前の手番を記録する。
+        const beforeTurn = state.currentTurn;
+        const expectedCell = beforeTurn === Color.BLACK ? CellState.BLACK : CellState.WHITE;
+
+        // 空交点へ着手する。
+        const result = GoBoardLogic.placeStone(state, r, c);
+
+        const ctx = '手番=' + beforeTurn + ' 着手=(' + r + ',' + c + ')';
+
+        // 空交点への着手なので有効。
+        assertEqual(result.valid, true, '着手が有効 [' + ctx + ']');
+
+        // 着手交点を除く全交点が着手前と等しい（既存の石も空も不変）。
+        for (let i = 0; i < BOARD_SIZE; i++) {
+          for (let j = 0; j < BOARD_SIZE; j++) {
+            if (i === r && j === c) {
+              continue; // 着手交点は変化するので対象外
+            }
+            assertEqual(
+              result.state.board[i][j],
+              preBoard[i][j],
+              '交点(' + i + ',' + j + ') が不変 [' + ctx + ']'
+            );
+          }
+        }
+
+        // 着手交点は手番の色になっている。
+        assertEqual(
+          result.state.board[r][c],
+          expectedCell,
+          '着手交点(' + r + ',' + c + ') が手番の色 [' + ctx + ']'
+        );
+
+        // 入力状態の盤面は呼び出し前後で不変（placeStone は入力を破壊しない）。
+        assertEqual(
+          JSON.stringify(state.board),
+          beforeInputSnapshot,
+          '入力盤面が不変 [' + ctx + ']'
+        );
+
+        checked++;
+      }
+
+      // 有効着手を最低 100 回検証していることを確認する。
+      assertEqual(checked >= 100, true, '最低 100 回の有効着手を検証 (検証 ' + checked + ' 回)');
+    });
+
+    // Feature: goboard, Property 7: 盤が満杯で勝者がいなければ引き分けになる
+    // 任意の勝者を生じない満杯盤面を構成する着手列について、盤上の全 225 交点が
+    // 石で埋まり Win_Condition が成立していない状態に到達したとき、Game_Status は
+    // 引き分け（DRAW）に設定される。
+    //
+    // 検証構成: ランダムな満杯盤面を placeStone だけで作ると高確率で 5 連が生じるため、
+    // 「5 連を含まないことが構造的に保証される充填パターン」で満杯盤面を組み立てる。
+    // 使用するのは剪断（シアー）パターン color(row,col) = floor((2*row + col + offset)/2)
+    // の偶奇である。offset を乱数で変えることで盤面に多様性を与える（offset は周期 4 で
+    // 実質 4 種類の盤面を生む）。このパターンは横・縦・両斜めのいずれの直線上でも同色が
+    // 5 つ連続しないことを、下記の実行時ガード（構成した満杯盤面上の全交点で
+    // checkWin が false であること）で毎回確認する。万一パターンが 5 連を含んだ場合は
+    // 別 offset で作り直し、それでも作れない場合はガードが例外を投げて誤った検証を防ぐ。
+    //
+    // 各反復の手順:
+    //   1. 勝者を生じない充填パターンで満杯盤面を構成する。構成後に「全交点で
+    //      checkWin === false」を確認し、勝者を含むなら別 offset で作り直す。
+    //   2. ランダムに最後の着手交点 (fr,fc) を選ぶ。満杯盤面から (fr,fc) だけを空に
+    //      戻した「最後の一手前」の盤面を作り、その交点に本来入る色を最後の手番とする。
+    //   3. ガード: 最後の一手前の盤面が、埋まっている全交点で勝者を含まないことを
+    //      アサートする（引き分け以外で終局する経路が無いことの担保）。
+    //   4. placeStone(state, fr, fc) を呼び、result.valid === true かつ
+    //      result.state.status === GameStatus.DRAW を検証する。
+    // Validates: Requirements 5.1
+    test('Property 7: 盤が満杯で勝者がいなければ引き分けになる', function () {
+      const randomInt = function (n) {
+        return Math.floor(Math.random() * n);
+      };
+
+      // 剪断パターンによる交点の色。offset で盤面に多様性を与える。
+      // 2*row + col の傾きにより横・縦・両斜めのいずれでも同色は最大 2 連までとなり、
+      // 5 連は構造的に生じない（実行時ガードで毎回検証する）。
+      const patternColorOf = function (row, col, offset) {
+        return (Math.floor((2 * row + col + offset) / 2) % 2 === 0)
+          ? Color.BLACK
+          : Color.WHITE;
+      };
+      const cellOf = function (row, col, offset) {
+        return patternColorOf(row, col, offset) === Color.BLACK
+          ? CellState.BLACK
+          : CellState.WHITE;
+      };
+
+      // 充填パターンで満杯盤面を構成する。
+      const buildFullBoard = function (offset) {
+        const board = [];
+        for (let r = 0; r < BOARD_SIZE; r++) {
+          const cells = [];
+          for (let c = 0; c < BOARD_SIZE; c++) {
+            cells.push(cellOf(r, c, offset));
+          }
+          board.push(cells);
+        }
+        return board;
+      };
+
+      // 盤上に石の置かれた交点で 1 つでも 5 連（勝者）があれば true。
+      const boardHasAnyWinner = function (board) {
+        for (let r = 0; r < BOARD_SIZE; r++) {
+          for (let c = 0; c < BOARD_SIZE; c++) {
+            if (board[r][c] !== CellState.EMPTY &&
+              GoBoardLogic.checkWin(board, r, c)) {
+              return true;
+            }
+          }
+        }
+        return false;
+      };
+
+      const ITERATIONS = 120; // 最低 100 回のランダム反復
+      let checked = 0;
+      let attempts = 0;
+      const maxAttempts = ITERATIONS * 20; // 作り直しによる無限ループ防止
+      while (checked < ITERATIONS && attempts < maxAttempts) {
+        attempts++;
+
+        // 1. 勝者を生じない充填パターンで満杯盤面を構成する。
+        const offset = randomInt(1000000);
+        const fullBoard = buildFullBoard(offset);
+        // パターンが万一 5 連を含んだら、この offset は使わず作り直す。
+        if (boardHasAnyWinner(fullBoard)) {
+          continue;
+        }
+
+        // 2. 最後の着手交点 (fr,fc) をランダムに選び、そこだけ空に戻した
+        //    「最後の一手前」の盤面と、その交点に本来入る色（＝最後の手番）を用意する。
+        const fr = randomInt(BOARD_SIZE);
+        const fc = randomInt(BOARD_SIZE);
+        const finalColor = patternColorOf(fr, fc, offset);
+        const preBoard = fullBoard.map(function (cells) {
+          return cells.slice();
+        });
+        preBoard[fr][fc] = CellState.EMPTY;
+
+        const ctx = 'offset=' + offset + ' final=(' + fr + ',' + fc + ')' +
+          ' finalColor=' + finalColor;
+
+        // 3. ガード: 最後の一手前の盤面は、埋まっている全交点で勝者を含まない。
+        //    これにより、この盤面が終局する唯一の経路は引き分けであることを担保する。
+        if (boardHasAnyWinner(preBoard)) {
+          throw new Error('最後の一手前の盤面が勝者を含む（構成が不正）[' + ctx + ']');
+        }
+
+        // 4. 最後の交点へ着手する。満杯かつ勝者なしなので引き分けになる。
+        const state = {
+          board: preBoard,
+          currentTurn: finalColor,
+          status: GameStatus.IN_PROGRESS,
+        };
+        const result = GoBoardLogic.placeStone(state, fr, fc);
+
+        assertEqual(result.valid, true, '最後の着手が有効 [' + ctx + ']');
+        assertEqual(
+          result.state.status,
+          GameStatus.DRAW,
+          '満杯・無勝者で引き分け [' + ctx + ']'
+        );
+
+        checked++;
+      }
+
+      // 引き分け成立を最低 100 回検証していることを確認する。
+      assertEqual(checked >= 100, true, '最低 100 回の引き分け成立を検証 (検証 ' + checked + ' 回)');
+    });
+
+    /* -------------------------------------------------------------------
+       UI コントローラ（表示・入力層 / DOM 依存・テスト対象外）
+       GoBoardLogic の純粋関数が返す GameState を DOM に描画する。
+       ここでは Task 7.1 として盤面描画・ステータス表示・UI 初期化を実装する。
+       クリックハンドリング（Task 7.2）とページ読み込み時の起動順（Task 7.3）は
+       後続タスクで配線するため、ここでは関数の定義のみとし自動実行はしない。
+       ------------------------------------------------------------------- */
+
+    /** DOM 要素のキャッシュ。initUI 時に解決する。 */
+    let gbBoardEl = null;
+    let gbStatusEl = null;
+    let gbNoticeEl = null;
+
+    /** クリック配線を一度だけ行うためのフラグ（再描画で重複登録しない）。 */
+    let gbEventsWired = false;
+
+    /** 現在表示中のゲーム状態（GameState）。initUI で生成する。 */
+    let gbState = null;
+
+    /**
+     * Game_Status を人間が読めるラベルへ変換する。
+     * 進行中は手番（黒番／白番）も併記する。
+     * @param {{currentTurn: string, status: string}} state 表示対象の GameState
+     * @returns {string} 表示用テキスト
+     */
+    function gbStatusText(state) {
+      switch (state.status) {
+        case GameStatus.BLACK_WIN:
+          return '黒の勝ち';
+        case GameStatus.WHITE_WIN:
+          return '白の勝ち';
+        case GameStatus.DRAW:
+          return '引き分け';
+        case GameStatus.IN_PROGRESS:
+        default:
+          return state.currentTurn === Color.BLACK
+            ? '進行中（黒番）'
+            : '進行中（白番）';
+      }
+    }
+
+    /**
+     * 現在の Game_Status を #gb-status に表示する。（Requirements 5.2）
+     * @param {{currentTurn: string, status: string}} state 表示対象の GameState
+     */
+    function renderStatus(state) {
+      if (!gbStatusEl) {
+        return;
+      }
+      gbStatusEl.textContent = gbStatusText(state);
+    }
+
+    /**
+     * 与えられた GameState の盤面を #gb-board に描画する。
+     * 15×15＝225 の交点をクリック可能なセルとして生成し、各セルには後続タスク
+     * （7.2 のクリック配線）が参照できるよう data-row / data-col を付与する。
+     * 交点の状態（EMPTY / BLACK / WHITE）に応じて石を重ねる。ここではクリック
+     * ハンドラは登録しない（Task 7.2）。
+     * @param {{board: string[][]}} state 描画対象の GameState
+     */
+    function renderBoard(state) {
+      if (!gbBoardEl) {
+        return;
+      }
+
+      // 既存の描画をクリアしてから作り直す（イミュータブルな再描画）。
+      gbBoardEl.textContent = '';
+
+      const board = state.board;
+      for (let row = 0; row < BOARD_SIZE; row++) {
+        for (let col = 0; col < BOARD_SIZE; col++) {
+          const cell = document.createElement('button');
+          cell.type = 'button';
+          cell.className = 'gb-cell';
+          cell.dataset.row = String(row);
+          cell.dataset.col = String(col);
+          cell.setAttribute(
+            'aria-label',
+            '交点 ' + row + ',' + col
+          );
+
+          const cellState = board[row][col];
+          if (cellState === CellState.BLACK || cellState === CellState.WHITE) {
+            const stone = document.createElement('span');
+            stone.className = 'gb-stone ' +
+              (cellState === CellState.BLACK ? 'gb-stone-black' : 'gb-stone-white');
+            cell.appendChild(stone);
+          }
+
+          gbBoardEl.appendChild(cell);
+        }
+      }
+    }
+
+    /**
+     * 着手拒否の理由コード（InvalidReason）を人間が読める日本語メッセージへ変換する。
+     * 盤上のクリックでは通常 OCCUPIED または NOT_IN_PROGRESS のみが発生するが、
+     * 想定外の理由（範囲外・不正座標）も安全に汎用メッセージへ写像する。
+     * @param {string} reason InvalidReason のいずれか
+     * @returns {string} 表示用メッセージ
+     */
+    function reasonToMessage(reason) {
+      switch (reason) {
+        case InvalidReason.OCCUPIED:
+          return 'そこには既に石があります';
+        case InvalidReason.NOT_IN_PROGRESS:
+          return '対局は既に終了しています';
+        case InvalidReason.OUT_OF_BOUNDS:
+        case InvalidReason.INVALID_COORDINATE:
+        default:
+          return 'その場所には石を置けません';
+      }
+    }
+
+    /**
+     * 通知領域（#gb-notice）にメッセージを表示する。
+     * message が空文字なら通知をクリアする。
+     * @param {string} message 表示するメッセージ（空文字でクリア）
+     */
+    function renderNotice(message) {
+      if (!gbNoticeEl) {
+        return;
+      }
+      gbNoticeEl.textContent = message || '';
+    }
+
+    /**
+     * 盤面とステータスをまとめて再描画する。
+     * 正常な再描画のたびに通知領域はクリアされ、直前の拒否メッセージが残らない。
+     * @param {{board: string[][], currentTurn: string, status: string}} state GameState
+     */
+    function render(state) {
+      renderBoard(state);
+      renderStatus(state);
+      renderNotice('');
+    }
+
+    /**
+     * 盤面クリックのハンドラ。イベント委譲で #gb-board 上に一度だけ登録する。
+     * クリックされたセル（.gb-cell）の data-row / data-col を整数として読み取り、
+     * GoBoardLogic.placeStone(gbState, row, col) を呼ぶ。
+     * - 有効な着手: gbState を返却状態へ更新し、盤面・ステータスを再描画する
+     *   （再描画により通知はクリアされる）。
+     * - 無効な着手: gbState は変更せず、理由に応じた日本語メッセージを通知する。
+     *   終局後（NOT_IN_PROGRESS）のクリックも安全に拒否され、通知のみ行う。
+     * @param {MouseEvent} event クリックイベント
+     */
+    function handleBoardClick(event) {
+      // クリック対象から最も近いセル要素を探す（石 span をクリックした場合も含む）。
+      const target = event.target;
+      const cell = target && target.closest ? target.closest('.gb-cell') : null;
+      if (!cell || !gbBoardEl.contains(cell)) {
+        return;
+      }
+
+      const row = parseInt(cell.dataset.row, 10);
+      const col = parseInt(cell.dataset.col, 10);
+
+      const result = GoBoardLogic.placeStone(gbState, row, col);
+      if (result.valid) {
+        gbState = result.state;
+        render(gbState);
+      } else {
+        renderNotice(reasonToMessage(result.reason));
+      }
+    }
+
+    /**
+     * UI のイベントを配線する。盤面クリックは #gb-board へのイベント委譲で
+     * 一度だけ登録し、再描画でセルを作り直しても重複登録が起きないようにする。
+     */
+    function wireEvents() {
+      if (gbEventsWired || !gbBoardEl) {
+        return;
+      }
+      gbBoardEl.addEventListener('click', handleBoardClick);
+      gbEventsWired = true;
+    }
+
+    /**
+     * UI を初期化する。DOM 要素を解決し、クリック配線を行い、
+     * GoBoardLogic.createGame() で新しいゲームを生成して gbState に保持し、
+     * 初期状態を描画する。
+     * ページ読み込み時の呼び出し（テスト実行後の初期化）は Task 7.3 で配線する。
+     */
+    function initUI() {
+      gbBoardEl = document.getElementById('gb-board');
+      gbStatusEl = document.getElementById('gb-status');
+      gbNoticeEl = document.getElementById('gb-notice');
+      wireEvents();
+      gbState = GoBoardLogic.createGame();
+      render(gbState);
+    }
+
+    /* -------------------------------------------------------------------
+       Startup（ページ読み込み時の起動配線）
+       起動順は「runTests() → initUI()」の順で行う（要件 7.1）。
+       - まずテストを同期実行し、各結果とサマリを console.log に出力する。
+       - テストは try/catch で囲み、万一例外が投げられても UI 初期化を止めない
+         （要件 7.5）。runTests 自体は例外を投げない設計だが、防御的に囲む。
+       - テストの成否にかかわらず initUI() を呼び、ゲーム生成・盤面描画・
+         イベント配線を行う。
+       ------------------------------------------------------------------- */
+    function startup() {
+      // 1. UI 初期化より前にテストを同期実行する（要件 7.1）。
+      //    テストの失敗は UI 初期化を妨げてはならない（要件 7.5）。
+      try {
+        runTests();
+      } catch (error) {
+        // runTests は例外を投げない設計だが、防御的に握りつぶして続行する。
+        console.log('[WARN] runTests threw unexpectedly: ' +
+          ((error && error.message) ? error.message : String(error)));
+      }
+      // 2. テストの成否にかかわらず UI を初期化する。
+      initUI();
+    }
+
+    // readyState を見て堅牢に起動する。<script> は body 末尾にあり対象要素は
+    // 既に存在するが、「ページ読み込み完了時」の要件を満たすため readyState 判定を行う。
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', startup);
+    } else {
+      startup();
+    }
+  </script>
+</body>
+</html>
