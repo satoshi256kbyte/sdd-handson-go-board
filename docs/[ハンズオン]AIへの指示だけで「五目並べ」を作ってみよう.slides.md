@@ -59,7 +59,7 @@ style: |
 <!-- _class: title invert -->
 <!-- paginate: false -->
 
-# 「五目並べ」を作ってみよう
+# [ハンズオン]AIへの指示だけで「五目並べ」を作ってみよう
 
 ---
 
