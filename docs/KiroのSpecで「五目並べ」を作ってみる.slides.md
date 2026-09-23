@@ -1,10 +1,73 @@
+---
+marp: true
+theme: gaia
+class: invert
+size: 16:9
+paginate: true
+style: |
+  section {
+    font-size: 18pt;
+    line-height: 1.6;
+  }
+  section:not(.title) > :is(h1, h2, h3):first-child {
+    border-bottom: 2px solid var(--color-header, currentColor);
+    margin-top: 0;
+    margin-bottom: 0.7em;
+    padding-bottom: 0.3em;
+  }
+  pre, code {
+    font-size: 14pt;
+  }
+  table {
+    display: table !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    font-size: 16pt;
+  }
+  table :is(th, td) {
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+    padding: 0.3em 0.6em;
+  }
+  section.compact {
+    font-size: 14pt;
+  }
+  section.compact pre,
+  section.compact code {
+    font-size: 11pt;
+  }
+  section.compact table {
+    font-size: 12pt;
+  }
+  section.compact :is(p, ul, ol, pre, table) {
+    margin-top: 0.35em;
+    margin-bottom: 0.35em;
+  }
+  section.compact li {
+    margin: 0.1em 0;
+  }
+  section.title {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    height: 100%;
+  }
+---
+
+<!-- _class: title invert -->
+<!-- paginate: false -->
+
 # KiroのSpecで「五目並べ」を作ってみる
+
+---
 
 ## KiroのSpec駆動開発（＝仕様駆動開発）とは
 
 「何を作るか」を先に文書化し、それを正解として実装していく開発スタイルです。
 
-![Spec駆動開発のイメージ](images/Spec駆動開発のイメージ.png)
+![Spec駆動開発のイメージ w:900](images/Spec駆動開発のイメージ.png)
 
 ---
 
@@ -20,7 +83,8 @@
 
 ## 仕様駆動開発は何もルールがない場合の型である
 
-慣れた人なら Vibe の途中で「仕様書を書かせてからそれを基に実装して」と自然に誘導できます。
+慣れた人なら Vibe の途中で「仕様書を書かせてからそれを基に実装して」と
+自然に誘導できます。
 つまり Vibe でも仕様書を挟む進め方はできます。
 
 問題は、それが属人的なスキルである点です。
@@ -99,7 +163,8 @@ STEP 3 以降が Spec の出番です。
 ## Vibe で Steering を作る
 
 Steering はプロジェクト全体に適用されるルール・方針です。
-まず Vibe で会話しながら内容を決め、`.kiro/steering/product-overview.md` に記録します。
+まず Vibe で会話しながら内容を決め、`.kiro/steering/product-overview.md` に
+記録します。
 ここ
 
 プロンプトの例は[こちら](「五目並べ」プロンプト例%20-%20Spec.md)をご覧ください。
@@ -110,13 +175,14 @@ Steering はプロジェクト全体に適用されるルール・方針です�
 
 Steering ができたら、Specで開発を進めていきます。
 
-![Specを作る](images/Specを作る.png)
+![Specを作る w:550](images/Specを作る.png)
 
 ---
 
 ## Specで一番見るべきはrequirements.md
 
-[requirements.md](.kiro/specs/goboard/requirements.md) は、次の要素で構成されます。
+[requirements.md](.kiro/specs/goboard/requirements.md) は、
+次の要素で構成されます。
 
 | 要素 | 何が書かれるか |
 |------|----------------|
@@ -130,6 +196,8 @@ Steering ができたら、Specで開発を進めていきます。
 Glossaryの説明に納得できるか・漏れがないか、を確認すると良いです。
 
 ---
+
+<!-- _class: compact invert -->
 
 ## User Story と Acceptance Criteria
 
@@ -154,7 +222,7 @@ IF すでに石があるマスをクリックしたなら THEN システムは�
 ここで認識がそろっていれば、実装後に「思ってたのと違う」が起きにくくなります。
 OKならば、requirements.mdのContinueで次に進めます。
 
-![requirements.mdのContinueで次に進める](images/requirements.mdのContinueで次に進める.png)
+![requirements.mdのContinueで次に進める w:230](images/requirements.mdのContinueで次に進める.png)
 
 ---
 
@@ -207,8 +275,10 @@ EARS の文型は「誰が・どの条件で・何をすべきか」を1文に�
 時間がかかるものなので、レビューの挙げ方はチームで協議してください。
 自分が説明できないものをレビューに挙げるのはマナー違反です。
 
-Spec駆動開発（仕様駆動開発）は、着実性を重視している手法で、Vibe より何倍も時間がかかります。
-故に、属人性の排除やスキルの補完を求めるのならともかく、速さを求めること自体がちょっと違います。
+Spec駆動開発（仕様駆動開発）は、着実性を重視している手法で、
+Vibe より何倍も時間がかかります。
+故に、属人性の排除やスキルの補完を求めるのならともかく、
+速さを求めること自体がちょっと違います。
 
 ---
 
@@ -233,7 +303,8 @@ AIに変更させる前に「何を変えるか」を確認し、
 ### ローカルルール追加時に修正方法とリグレッションテストを要件に入れる
 
 ローカルルールは既存のゲームロジックに影響します。
-Spec で実装するなら、requirements.md の段階で、影響範囲を最小にする修正方法をとること、リグレッションテストの要件も入れます。
+Spec で実装するなら、requirements.md の段階で、
+影響範囲を最小にする修正方法をとること、リグレッションテストの要件も入れます。
 
 ```text
 1. 修正方法：既存のゲームロジックへの影響範囲を最小にする形で追加すること
@@ -249,6 +320,8 @@ AIがテストケースを生成する際の基準にもなります。
 ## まとめ
 
 - Spec は「何を作るか」を先に固めてから実装する型。チームで共通のやり方を持てる
-- プロジェクト全体の方針（技術スタック・テスト方針など）は Steering に、機能ごとの要件は Spec に書く
-- Specで一番見るべきはrequirements.md で「やりたいことが書かれているか」「完了の判断基準が合っているか」を必ず確認する
+- プロジェクト全体の方針（技術スタック・テスト方針など）は Steering に、
+  機能ごとの要件は Spec に書く
+- Specで一番見るべきはrequirements.md で「やりたいことが書かれているか」
+  「完了の判断基準が合っているか」を必ず確認する
 - 新規実装と修正は必ずコミットを分け、変更は PR でレビューを挟む
