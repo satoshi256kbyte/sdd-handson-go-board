@@ -11,9 +11,19 @@ style: |
   }
   section:not(.title) > :is(h1, h2, h3):first-child {
     border-bottom: 2px solid var(--color-header, currentColor);
+    font-size: 30pt;
     margin-top: 0;
     margin-bottom: 0.7em;
     padding-bottom: 0.3em;
+  }
+  section.title p {
+    position: absolute;
+    left: 6%;
+    bottom: 10%;
+    margin: 0;
+    font-size: 0.85em;
+    text-align: left;
+    opacity: 0.9;
   }
   pre, code {
     font-size: 14pt;
@@ -53,13 +63,33 @@ style: |
     align-items: center;
     text-align: center;
     height: 100%;
+    position: relative;
   }
 ---
 
 <!-- _class: title invert -->
 <!-- paginate: false -->
 
-# [ハンズオン]AIへの指示だけで「五目並べ」を作ってみよう
+# [ハンズオン]AIへの指示だけで<br>「五目並べ」を作ってみよう
+
+Satoshi Kaneyasu
+
+---
+
+<!-- _class: compact invert -->
+
+## 目次
+
+- 本日やること
+- そもそも「五目並べ」とは（ルール確認）
+- 「五目並べ」のローカルルール
+- 今日のルール
+- STEP 1：目的の共有
+- STEP 2：実装方針の作成
+- STEP 3：ゲームとして最低限の実装をする
+- STEP 4：ローカルルールを足す
+- STEP 4：補足
+- STEP 5：オレオレルールを足す
 
 ---
 

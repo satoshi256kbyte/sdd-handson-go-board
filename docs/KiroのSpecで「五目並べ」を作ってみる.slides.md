@@ -11,9 +11,19 @@ style: |
   }
   section:not(.title) > :is(h1, h2, h3):first-child {
     border-bottom: 2px solid var(--color-header, currentColor);
+    font-size: 30pt;
     margin-top: 0;
     margin-bottom: 0.7em;
     padding-bottom: 0.3em;
+  }
+  section.title p {
+    position: absolute;
+    left: 6%;
+    bottom: 10%;
+    margin: 0;
+    font-size: 0.85em;
+    text-align: left;
+    opacity: 0.9;
   }
   pre, code {
     font-size: 14pt;
@@ -53,6 +63,7 @@ style: |
     align-items: center;
     text-align: center;
     height: 100%;
+    position: relative;
   }
 ---
 
@@ -60,6 +71,27 @@ style: |
 <!-- paginate: false -->
 
 # KiroのSpecで「五目並べ」を作ってみる
+
+Satoshi Kaneyasu
+
+---
+
+<!-- _class: compact invert -->
+
+## 目次
+
+- KiroのSpec駆動開発（＝仕様駆動開発）とは
+- Vibe Coding との対比
+- 仕様駆動開発は何もルールがない場合の型である
+- KiroのSpecのディレクトリ構成
+- KiroのSpecでローカルルールの追加までやってみるとしたら
+- Vibe で Steering を作る
+- Specで実装する
+- Specで一番見るべきはrequirements.md
+- Kiroに採用されているEARS記法
+- Specのdesign.mdとtasks.mdはどれぐらい時間をかけて見るべき？
+- 新規追加と修正は必ずコミット分けること
+- まとめ
 
 ---
 
@@ -83,8 +115,7 @@ style: |
 
 ## 仕様駆動開発は何もルールがない場合の型である
 
-慣れた人なら Vibe の途中で「仕様書を書かせてからそれを基に実装して」と
-自然に誘導できます。
+慣れた人なら Vibe の途中で「仕様書を書かせてからそれを基に実装して」と自然に誘導できます。
 つまり Vibe でも仕様書を挟む進め方はできます。
 
 問題は、それが属人的なスキルである点です。
@@ -163,9 +194,8 @@ STEP 3 以降が Spec の出番です。
 ## Vibe で Steering を作る
 
 Steering はプロジェクト全体に適用されるルール・方針です。
-まず Vibe で会話しながら内容を決め、`.kiro/steering/product-overview.md` に
-記録します。
-ここ
+まず Vibe で会話しながら内容を決め、
+`.kiro/steering/product-overview.md` に記録します。
 
 プロンプトの例は[こちら](「五目並べ」プロンプト例%20-%20Spec.md)をご覧ください。
 
