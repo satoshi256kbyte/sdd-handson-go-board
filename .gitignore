@@ -2,3 +2,4 @@
 .playwright-mcp/*.log
 .playwright-mcp/*.yml
 docs/*.pptx
+docs/*.pdf
