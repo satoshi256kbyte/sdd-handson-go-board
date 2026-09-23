@@ -185,6 +185,9 @@
     /** 勝利に必要な同色連続数。 */
     const WIN_LENGTH = 5;
 
+    /** Three_In_A_Row を構成する同色連続数（ちょうど 3 個）。 */
+    const THREE_LENGTH = 3;
+
     /**
      * 勝敗判定で走査する 4 方向。
      * 各方向について起点から両側の同色連続数を数える。
@@ -206,6 +209,7 @@
       OUT_OF_BOUNDS: 'OUT_OF_BOUNDS',           // 行または列が 0〜14 の範囲外
       INVALID_COORDINATE: 'INVALID_COORDINATE', // 行または列が整数でない値
       NOT_IN_PROGRESS: 'NOT_IN_PROGRESS',       // ゲームが進行中でない状態での着手
+      DOUBLE_THREE: 'DOUBLE_THREE',             // Black_Player の着手が Double_Three を成立させる
     });
 
     /* -------------------------------------------------------------------
@@ -403,6 +407,257 @@
         };
       }
 
+      /* --- Open_Three 検出（連続3の同時成立の判定の中核・DOM 非依存の純粋関数） ------
+         着手交点を含む Open_Three が各 Line 方向で成立しているかを判定する。
+         design.md「Open_Three 検出アルゴリズム」に対応する。 */
+
+      /**
+       * 指定した交点 (row, col) が盤内かつ指定色の石であるかを返す補助関数。
+       * 盤外・空・相手色はいずれも false。
+       * @param {string[][]} board 盤面
+       * @param {number} row 行
+       * @param {number} col 列
+       * @param {string} cell 期待する CellState（BLACK / WHITE）
+       * @returns {boolean} 盤内かつ指定色なら true
+       */
+      function isCell(board, row, col, cell) {
+        return isValidCoordinate(row, col) && board[row][col] === cell;
+      }
+
+      /**
+       * 指定した交点 (row, col) が盤内かつ空であるかを返す補助関数。
+       * @param {string[][]} board 盤面
+       * @param {number} row 行
+       * @param {number} col 列
+       * @returns {boolean} 盤内かつ空なら true
+       */
+      function isEmptyCell(board, row, col) {
+        return isValidCoordinate(row, col) && board[row][col] === CellState.EMPTY;
+      }
+
+      /* --- Open_Three 列挙と Three_Registry 再計算（DOM 非依存の純粋関数） ---
+         盤面全体を走査し、指定色の Open_Three（同色ちょうど 3 個「連続」しかつ
+         少なくとも一方の端が開いて延長可能な並び ●●●）を列挙する。飛び三（●●_●）
+         および両端が塞がれた連続 3 は含めない。Three_In_A_Row は本仕様では Open_Three
+         と同義であり、以降のログ表記も同じ意味で用いる。design.md「Three_Registry の
+         正規化と再計算」に対応する。 */
+
+      /**
+       * Open_Three を構成する 3 交点の座標列から、重複排除用の正規化キーを作る。
+       * 座標列を (row, col) の辞書順で昇順ソートし、その並びを文字列化する。
+       * Open_Three は連続 3 のみで内部に空 Intersection を含まない（石のある 3 交点のみ）。
+       * 走査の起点や方向の取り方によらず、同一の 3 石集合は同一のキーを持つ。
+       * @param {{row:number, col:number}[]} cells 構成する 3 交点（順不同）
+       * @returns {{cells:{row:number,col:number}[], key:string}} 正規化済み交点列とキー
+       */
+      function normalizeThreeCells(cells) {
+        const sorted = cells.slice().sort(function (a, b) {
+          if (a.row !== b.row) {
+            return a.row - b.row;
+          }
+          return a.col - b.col;
+        });
+        const key = sorted
+          .map(function (p) { return p.row + ',' + p.col; })
+          .join('|');
+        return { cells: sorted, key: key };
+      }
+
+      /**
+       * 盤面全体を走査し、指定色の Open_Three（同色ちょうど 3 個「連続」しかつ
+       * 延長可能な開いた端を持つ並び ●●●）の位置集合を返す。盤面は変更しない。
+       *
+       * design.md「Open_Three 検出アルゴリズム」に準拠する。判定は次の 2 段階で行う。
+       * 1. 連続 3 の窓の抽出: 各起点 (r, c) から方向 (dr, dc) へ 3 マス連続して
+       *    同色の窓 (p0, p1, p2) のみを候補とする。飛び三（●●_●）は候補としない。
+       * 2. 端の延長可能性（Open 条件）: 窓の前端外側 before(= p0 の一つ手前) と
+       *    後端外側 after(= p2 の一つ次) のうち少なくとも一方が「盤内かつ空」であれば、
+       *    その端へ延長して同色 4 連を作り得るため Open_Three とみなす。前端外側・
+       *    後端外側がいずれも相手 Stone または盤端で塞がれている連続 3 は除外する。
+       *
+       * 各方向は順方向 (dr, dc) のみを起点走査に用いる（反対向きは同一 Line の重複と
+       * なるため）。抽出した 3 石は構成 3 交点を辞書順昇順に正規化した key で一意化し、
+       * 重複を排除して返す。「1 本の Line 上の連続 3 ＋ 端の延長可能性」の判定ロジックは
+       * 本関数内にインラインで実装する（旧 detectOpenThrees の着手点ベース版は廃止済み）。
+       *
+       * @param {string[][]} board 走査対象の盤面
+       * @param {string} color 対象の色（Color.BLACK / Color.WHITE）
+       * @returns {{color:string, cells:{row:number,col:number}[], key:string}[]}
+       *          重複を含まない Open_Three の配列
+       */
+      function findOpenThrees(board, color) {
+        const cell = color === Color.BLACK ? CellState.BLACK : CellState.WHITE;
+        const seen = Object.create(null);
+        const result = [];
+
+        const isColorAt = function (r, c) {
+          return isCell(board, r, c, cell);
+        };
+        const isEmptyAt = function (r, c) {
+          return isEmptyCell(board, r, c);
+        };
+        const addOpenThree = function (p0, p1, p2) {
+          const normalized = normalizeThreeCells([p0, p1, p2]);
+          if (seen[normalized.key]) {
+            return;
+          }
+          seen[normalized.key] = true;
+          result.push({
+            color: color,
+            cells: normalized.cells,
+            key: normalized.key,
+          });
+        };
+
+        for (let r = 0; r < BOARD_SIZE; r++) {
+          for (let c = 0; c < BOARD_SIZE; c++) {
+            for (let d = 0; d < DIRECTIONS.length; d++) {
+              const dr = DIRECTIONS[d].dr;
+              const dc = DIRECTIONS[d].dc;
+              // オフセット k の交点座標。
+              const rowAt = function (k) { return r + k * dr; };
+              const colAt = function (k) { return c + k * dc; };
+
+              // 1. 連続 3 の窓の抽出: [k=0, 1, 2] がすべて同色 (●●●)。
+              //    飛び三は候補にしない（連続 3 のみ）。
+              if (
+                !(isColorAt(rowAt(0), colAt(0)) &&
+                  isColorAt(rowAt(1), colAt(1)) &&
+                  isColorAt(rowAt(2), colAt(2)))
+              ) {
+                continue;
+              }
+
+              // 2. 端の延長可能性: 前端外側 (k=-1) と後端外側 (k=3) のうち
+              //    少なくとも一方が盤内かつ空であれば延長して 4 連を作り得る。
+              //    両端が相手 Stone・盤端で塞がれた連続 3 は Open_Three ではない。
+              const beforeEmpty = isEmptyAt(rowAt(-1), colAt(-1));
+              const afterEmpty = isEmptyAt(rowAt(3), colAt(3));
+              if (!beforeEmpty && !afterEmpty) {
+                continue;
+              }
+
+              // 3. 正規化して重複排除しつつ登録する。
+              addOpenThree(
+                { row: rowAt(0), col: colAt(0) },
+                { row: rowAt(1), col: colAt(1) },
+                { row: rowAt(2), col: colAt(2) }
+              );
+            }
+          }
+        }
+
+        return result;
+      }
+
+      /**
+       * 確定後の盤面から黒・白それぞれの Open_Three 位置集合を再計算し、
+       * Three_Registry を新規に構築して返す。黒・白それぞれについて
+       * findOpenThrees(board, color) を呼び、その結果で { black, white } を
+       * 新規構築する。findOpenThrees は key で重複排除済みのため、追加の
+       * 重複排除は不要である。盤面は変更せず、既存の Three_Registry も
+       * 参照しないため、確定後盤面に対して毎回同じ結果を返す。黒・白は区別して
+       * 保持し、各集合内に同一の Open_Three（同一キー）を重複して持たない。
+       * @param {string[][]} board 確定後の盤面
+       * @returns {{black:Object[], white:Object[]}} 黒・白を区別した Three_Registry
+       */
+      function computeThreeRegistry(board) {
+        return {
+          black: findOpenThrees(board, Color.BLACK),
+          white: findOpenThrees(board, Color.WHITE),
+        };
+      }
+
+      /**
+       * 指定色の Open_Three が盤面全体に 2 個以上存在する（Double_Three か）を判定する。
+       *
+       * 判定は着手点や方向を参照せず、盤面全体の当該色 Open_Three 総数のみで行う。
+       * computeThreeRegistry(board)[colorKey].length >= 2 と論理的に同値であり、
+       * 連続3の同時2箇所成立の禁止の判定とログ出力が参照する Three_Registry を唯一の情報源とする。
+       * 盤面は変更しない。
+       *
+       * @param {string[][]} board 判定対象の盤面（着手を反映済みの盤面を渡す）
+       * @param {string} color 判定対象の色（Color.BLACK / Color.WHITE）
+       * @returns {boolean} 当該色の Open_Three が 2 個以上なら true
+       */
+      function isDoubleThree(board, color) {
+        const colorKey = color === Color.BLACK ? 'black' : 'white';
+        return computeThreeRegistry(board)[colorKey].length >= 2;
+      }
+
+      /* --- applyMove（連続3の同時2箇所成立の禁止ローカルルールを含む着手ラッパ） ----------
+         既存 placeStone を内部で呼び、その有効結果に対してのみ連続3の同時2箇所成立の禁止と
+         Three_Registry 再計算を後段で適用する。placeStone 自体は変更しない。
+         design.md「Architecture 着手処理の流れ」「Error Handling」に対応する。 */
+
+      /**
+       * 連続3の同時2箇所成立の禁止ローカルルールを含めて着手を適用するラッパ。
+       *
+       * 手順:
+       *   1. 既存 placeStone を呼ぶ。無効ならその結果をそのまま伝え、
+       *      Three_Registry は着手前盤面から算出した内容（不変）を付す（要件 2.3, 3.4, 4.3）。
+       *   2. 有効な場合、着手後 Game_Status が BLACK_WIN なら連続3の同時2箇所成立の禁止を適用せず
+       *      勝ちを優先する（要件 1.4）。
+       *   3. 着手前手番が Black_Player かつ非 Win_Condition のとき、確定後盤面から
+       *      Three_Registry を 1 回だけ再計算し、registry.black.length >= 2 なら
+       *      Double_Three として valid=false・reason=DOUBLE_THREE に差し替え、
+       *      状態を着手前の state に戻し、Three_Registry も着手前の内容へ戻して返す
+       *      （要件 1.1, 1.5, 2.3, 4.1）。禁止判定はこの再計算済み Three_Registry の
+       *      黒個数を唯一の情報源として参照する（旧 isDoubleThreeMove は用いない）。
+       *   4. それ以外（白の着手・黒で黒 Open_Three が 1 個以下の手）は有効のまま受理し、
+       *      同じ再計算済み Three_Registry を LocalMoveResult に含める（要件 1.2, 1.3, 2.2）。
+       *
+       * 既存 placeStone は変更しない。入力状態は変更しない。
+       * @param {Object} state 現在のゲーム状態
+       * @param {number} row 行番号
+       * @param {number} col 列番号
+       * @returns {{valid:boolean, reason:string|null, state:Object, registry:{black:Object[], white:Object[]}}} LocalMoveResult
+       */
+      function applyMove(state, row, col) {
+        // 着手前の手番を確定させておく（placeStone は state を変更しない）。
+        const movingColor = state.currentTurn;
+
+        const base = placeStone(state, row, col);
+
+        // 1. placeStone が無効を返した場合は、その結果をそのまま伝える。
+        //    Three_Registry は着手前盤面から算出し、着手前のまま変化させない。
+        if (!base.valid) {
+          return {
+            valid: false,
+            reason: base.reason,
+            state: base.state,
+            registry: computeThreeRegistry(state.board),
+          };
+        }
+
+        // 有効確定に用いる Three_Registry は確定後盤面から 1 回だけ再計算する。
+        // この結果を禁止判定（黒個数 >= 2）とログ出力の唯一の情報源とする。
+        const registry = computeThreeRegistry(base.state.board);
+
+        // 2. 着手後 Game_Status が BLACK_WIN なら連続3の同時2箇所成立の禁止を適用せず勝ちを優先する。
+        const isBlackWin = base.state.status === GameStatus.BLACK_WIN;
+
+        // 3. 着手前手番が黒かつ非 Win_Condition で、確定後盤面全体の黒 Open_Three が
+        //    2 個以上（Double_Three）なら拒否する。状態・Three_Registry を着手前へ戻す。
+        if (movingColor === Color.BLACK && !isBlackWin &&
+            registry.black.length >= 2) {
+          return {
+            valid: false,
+            reason: InvalidReason.DOUBLE_THREE,
+            state: state,
+            registry: computeThreeRegistry(state.board),
+          };
+        }
+
+        // 4. 有効確定。再計算済みの Three_Registry をそのまま含める。
+        return {
+          valid: true,
+          reason: null,
+          state: base.state,
+          registry: registry,
+        };
+      }
+
       return {
         createGame: createGame,
         nextTurn: nextTurn,
@@ -410,6 +665,10 @@
         checkWin: checkWin,
         isBoardFull: isBoardFull,
         placeStone: placeStone,
+        findOpenThrees: findOpenThrees,
+        isDoubleThree: isDoubleThree,
+        computeThreeRegistry: computeThreeRegistry,
+        applyMove: applyMove,
       };
     })();
 
@@ -1085,6 +1344,539 @@
         };
       }
 
+      /* --- local-rules（連続3の同時2箇所成立の禁止）向けジェネレータ --------------------
+         Task 7.1 / 7.2。連続3の同時2箇所成立の禁止の意味論は「確定後盤面全体の当該色 Open_Three
+         総数」で定義される（着手点を通る方向数ではない）。本節のジェネレータは
+         この全盤面個数の意味論に合わせて、次の盤面・着手を確実に構成する。
+
+           - randomBlackDoubleThree: 黒着手で盤面全体の黒 Open_Three が 2 個以上
+             （着手点十字で 2 個成立させる形を含む）。
+           - randomBlackSingleOpenThree: 黒着手後の盤面全体の黒 Open_Three が
+             1 個以下に収まる（受理される手）。
+           - randomWhiteDoubleThree: 白着手で盤面全体の白 Open_Three が 2 個以上
+             （手番を白に設定）。
+           - randomBlackDoubleThreeWin: 黒 Open_Three 2 個以上かつ着手が 5 連にも
+             なる（Win_Condition と連続3の2箇所成立が同時成立）。
+           - randomBlackDistantDoubleThree: 着手点と無関係な黒 Open_Three を 1 個
+             先置きし、今回の黒着手が離れた位置に 2 個目の黒 Open_Three を成立させる
+             （互いに交わらない全盤面 2 個。Task 7.2）。
+           - randomBlackDistantAccept: 上と同じ「離れた既存 Open_Three が 1 個ある」
+             盤面で、黒着手後も盤面全体の黒 Open_Three を 1 個以下に保つ受理ケース
+             （Task 7.2）。
+
+         いずれも DOM 非依存で、渡された状態を変更せず新しい fixture を返す。
+         Open_Three は「同色ちょうど 3 個連続かつ少なくとも一方の端が空で延長可能」
+         という findOpenThrees のセマンティクスに合わせて構成し、生成した fixture が
+         意図した個数条件を満たすことを GoBoardLogic の公開関数（computeThreeRegistry /
+         isDoubleThree / checkWin）で検証（構成が外れた場合は上限付きで再生成）して
+         から返す。design.md「追加が必要なジェネレータの設計要点」に対応する。 */
+
+      /**
+       * 空の 15×15 盤面（全交点 CellState.EMPTY）を新規生成する内部ヘルパ。
+       * @returns {string[][]} 空盤面
+       */
+      function createEmptyBoard() {
+        const board = [];
+        for (let row = 0; row < BOARD_SIZE; row++) {
+          const cells = [];
+          for (let col = 0; col < BOARD_SIZE; col++) {
+            cells.push(CellState.EMPTY);
+          }
+          board.push(cells);
+        }
+        return board;
+      }
+
+      /**
+       * 盤面を行ごとに複製する内部ヘルパ（渡された board は変更しない）。
+       * @param {string[][]} board 複製元の盤面
+       * @returns {string[][]} 複製された盤面
+       */
+      function cloneBoard(board) {
+        return board.map(function (cells) {
+          return cells.slice();
+        });
+      }
+
+      /**
+       * 指定盤面へ「着手」を反映した複製盤面を返す内部ヘルパ。
+       * 元の board は変更しない。
+       * @param {string[][]} board 元盤面
+       * @param {number} row 着手行
+       * @param {number} col 着手列
+       * @param {string} cell 置く CellState（BLACK / WHITE）
+       * @returns {string[][]} 着手を反映した複製盤面
+       */
+      function boardWithStone(board, row, col, cell) {
+        const copy = cloneBoard(board);
+        copy[row][col] = cell;
+        return copy;
+      }
+
+      /**
+       * 中心交点 (cr, cc) を含む連続 3（contiguous-3）を 1 方向ぶん、着手前盤面へ
+       * 先置きするための「両隣の座標」を返す内部ヘルパ。
+       *
+       * 中心交点そのものは着手（target move）で埋めるため、ここでは中心の
+       * 前後 1 マス（center-1・center+1）だけを同色石として先置きする対象とする。
+       * これにより target を置いた時点で center を中央とする `X X X` が成立し、
+       * 両端（center-2・center+2）は空のままとなり Open_Three 条件を満たす。
+       * @param {number} cr 中心行
+       * @param {number} cc 中心列
+       * @param {{dr:number, dc:number}} dir 方向
+       * @returns {{row:number, col:number}[]} 先置きする 2 交点（center±1）
+       */
+      function neighborStonesFor(cr, cc, dir) {
+        return [
+          { row: cr - dir.dr, col: cc - dir.dc },
+          { row: cr + dir.dr, col: cc + dir.dc },
+        ];
+      }
+
+      /**
+       * 黒/白の Double_Three（着手後の盤面全体に当該色 Open_Three が 2 個以上
+       * 成立する着手）を確実に構成する fixture を生成する内部ヘルパ。
+       *
+       * 着手点を中心とする十字（相異なる 2 方向）に連続 3 を作り、着手後の盤面
+       * 全体で当該色 Open_Three がちょうど 2 個成立する形を用いる。判定は
+       * 着手点を通る方向数ではなく盤面全体の個数で行うため、十字で 2 個成立させれば
+       * isDoubleThree(post, color) が true となる。
+       *
+       * 手順:
+       *   1. 盤端から十分な余白（±2 の窓が盤内に収まる）を持つ中心交点を選ぶ。
+       *   2. DIRECTIONS から相異なる 2 方向を選び、各方向について中心の両隣
+       *      （center±1）へ同色石を先置きする（中心自身は target move で埋める）。
+       *   3. target を置いた盤面を作り、盤面全体の当該色 Open_Three が 2 個以上
+       *      （isDoubleThree が true）であること、かつ 5 連（checkWin）が成立して
+       *      いないことを検証する。満たさない場合は上限まで再生成する。
+       *
+       * @param {string} color 着手色（Color.BLACK / Color.WHITE）
+       * @returns {{
+       *   board: string[][],
+       *   move: {row:number, col:number},
+       *   currentTurn: string,
+       *   color: string
+       * }} 着手前盤面・target move・手番・色を含む fixture
+       */
+      function buildDoubleThreeFixture(color) {
+        const cell = color === Color.BLACK ? CellState.BLACK : CellState.WHITE;
+        const MAX_ATTEMPTS = 200;
+        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+          // 中心を 4〜10 に取り、いずれの方向でも center±2 が盤内に収まるようにする。
+          const cr = 4 + randomInt(7); // 4 .. 10
+          const cc = 4 + randomInt(7); // 4 .. 10
+
+          // 相異なる 2 方向を選ぶ。
+          const d1 = randomInt(DIRECTIONS.length);
+          let d2 = randomInt(DIRECTIONS.length);
+          while (d2 === d1) {
+            d2 = randomInt(DIRECTIONS.length);
+          }
+          const dirs = [DIRECTIONS[d1], DIRECTIONS[d2]];
+
+          const board = createEmptyBoard();
+          for (let i = 0; i < dirs.length; i++) {
+            const neighbors = neighborStonesFor(cr, cc, dirs[i]);
+            for (let j = 0; j < neighbors.length; j++) {
+              board[neighbors[j].row][neighbors[j].col] = cell;
+            }
+          }
+
+          // target を置いた盤面で条件を検証する。判定は盤面全体の個数で行う。
+          const post = boardWithStone(board, cr, cc, cell);
+          if (
+            GoBoardLogic.isDoubleThree(post, color) &&
+            !GoBoardLogic.checkWin(post, cr, cc)
+          ) {
+            return {
+              board: board,
+              move: { row: cr, col: cc },
+              currentTurn: color,
+              color: color,
+            };
+          }
+        }
+        // 上限まで構成できない場合は最後の attempt 相当を返さず、決定的な
+        // フォールバック（縦横 2 方向・中心 (7,7)）を構築して返す。
+        const board = createEmptyBoard();
+        const fallbackDirs = [
+          { dr: 0, dc: 1 }, // 横
+          { dr: 1, dc: 0 }, // 縦
+        ];
+        for (let i = 0; i < fallbackDirs.length; i++) {
+          const neighbors = neighborStonesFor(7, 7, fallbackDirs[i]);
+          for (let j = 0; j < neighbors.length; j++) {
+            board[neighbors[j].row][neighbors[j].col] = cell;
+          }
+        }
+        return {
+          board: board,
+          move: { row: 7, col: 7 },
+          currentTurn: color,
+          color: color,
+        };
+      }
+
+      /**
+       * 黒の Double_Three を確実に構成する fixture を生成する。
+       *
+       * 着手前盤面 board へ target move (move.row, move.col) として黒石を置くと、
+       * 相異なる 2 方向以上で Open_Three が成立する（Double_Three となる）。
+       * かつ、その着手は 5 連（Win_Condition）を成立させない。currentTurn は
+       * Color.BLACK。プロパティテストは board から GameState を構築し
+       * GoBoardLogic.applyMove(state, move.row, move.col) を呼んで、着手が
+       * DOUBLE_THREE で拒否されることを検証できる。
+       * @returns {{
+       *   board: string[][],
+       *   move: {row:number, col:number},
+       *   currentTurn: string,
+       *   color: string
+       * }} 黒の Double_Three fixture
+       */
+      function randomBlackDoubleThree() {
+        return buildDoubleThreeFixture(Color.BLACK);
+      }
+
+      /**
+       * 白の Double_Three を構成する fixture を生成する（手番を白に設定）。
+       *
+       * randomBlackDoubleThree と同一の構成だが color/currentTurn が Color.WHITE。
+       * プロパティテストは、白の着手には連続3の同時2箇所成立の禁止が適用されず applyMove が
+       * valid=true で受理することを検証できる。
+       * @returns {{
+       *   board: string[][],
+       *   move: {row:number, col:number},
+       *   currentTurn: string,
+       *   color: string
+       * }} 白の Double_Three fixture（currentTurn=WHITE）
+       */
+      function randomWhiteDoubleThree() {
+        return buildDoubleThreeFixture(Color.WHITE);
+      }
+
+      /**
+       * 黒着手後の盤面全体の黒 Open_Three が 1 個以下に収まる（受理される）
+       * fixture を生成する。
+       *
+       * target move として黒石を置くと、盤面全体の黒 Open_Three が 1 個以下
+       * （通常はちょうど 1 個）となり、かつ 5 連も成立しない。currentTurn は
+       * Color.BLACK。他方向・他所に誤って 2 個目の Open_Three ができないよう、
+       * 空盤の単一方向にのみ両隣を先置きし、生成後に盤面全体の黒 Open_Three 個数が
+       * 1 個以下（computeThreeRegistry(post).black.length <= 1）であることを
+       * 検証する（外れた場合は上限まで再生成）。判定は方向数ではなく盤面全体の
+       * 個数で行う。
+       * @returns {{
+       *   board: string[][],
+       *   move: {row:number, col:number},
+       *   currentTurn: string,
+       *   color: string
+       * }} 黒の受理（Open_Three 1 個以下）fixture
+       */
+      function randomBlackSingleOpenThree() {
+        const cell = CellState.BLACK;
+        const MAX_ATTEMPTS = 200;
+        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+          const cr = 4 + randomInt(7); // 4 .. 10
+          const cc = 4 + randomInt(7); // 4 .. 10
+          const dir = DIRECTIONS[randomInt(DIRECTIONS.length)];
+
+          const board = createEmptyBoard();
+          const neighbors = neighborStonesFor(cr, cc, dir);
+          for (let j = 0; j < neighbors.length; j++) {
+            board[neighbors[j].row][neighbors[j].col] = cell;
+          }
+
+          const post = boardWithStone(board, cr, cc, cell);
+          const blackCount = GoBoardLogic.computeThreeRegistry(post).black.length;
+          if (blackCount <= 1 && !GoBoardLogic.checkWin(post, cr, cc)) {
+            return {
+              board: board,
+              move: { row: cr, col: cc },
+              currentTurn: Color.BLACK,
+              color: Color.BLACK,
+            };
+          }
+        }
+        // フォールバック: 中心 (7,7) を横方向に単一 Open_Three とする。
+        // 盤面全体の黒 Open_Three は 1 個。
+        const board = createEmptyBoard();
+        const neighbors = neighborStonesFor(7, 7, { dr: 0, dc: 1 });
+        for (let j = 0; j < neighbors.length; j++) {
+          board[neighbors[j].row][neighbors[j].col] = cell;
+        }
+        return {
+          board: board,
+          move: { row: 7, col: 7 },
+          currentTurn: Color.BLACK,
+          color: Color.BLACK,
+        };
+      }
+
+      /**
+       * 黒の Double_Three かつ 5 連（Win_Condition と連続3の2箇所成立が同時成立）となる
+       * fixture を生成する。
+       *
+       * target move として黒石を置くと、ある 1 方向では同色 5 連（Win_Condition）を
+       * 成立させ、別の 1 方向では Open_Three を成立させる。これにより
+       * 盤面全体の黒 Open_Three が 2 個以上（isDoubleThree が true）となりつつ
+       * checkWin も true になり、applyMove が連続3の同時2箇所成立の禁止より Win_Condition を優先して
+       * BLACK_WIN とすることを検証できる。currentTurn は Color.BLACK。
+       *
+       * 構成:
+       *   1. 中心 (cr, cc) を余白十分な範囲で選ぶ。
+       *   2. 勝ち方向 winDir を選び、その方向へ target を含む 5 連を作るための
+       *      残り 4 石（中心から±方向へ連続）を先置きする。
+       *   3. winDir と相異なる方向 otherDir を選び、その方向の中心両隣へ黒石を
+      *      先置きして Open_Three を作る。
+       *   4. target を置いた盤面で checkWin かつ isDoubleThree（盤面全体の黒
+       *      Open_Three が 2 個以上）が true となることを検証する（外れた場合は
+       *      上限まで再生成）。
+       * @returns {{
+       *   board: string[][],
+       *   move: {row:number, col:number},
+       *   currentTurn: string,
+       *   color: string
+       * }} 黒の Double_Three かつ Win_Condition fixture
+       */
+      function randomBlackDoubleThreeWin() {
+        const cell = CellState.BLACK;
+        const MAX_ATTEMPTS = 300;
+        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+          // 5 連方向は中心から -offset..+offset まで最大 5 連が盤内に必要。
+          // 中心を 6〜8 に取り、中心±4 が盤内（2..12）に収まるようにする。
+          const cr = 6 + randomInt(3); // 6 .. 8
+          const cc = 6 + randomInt(3); // 6 .. 8
+
+          const dwin = randomInt(DIRECTIONS.length);
+          let dother = randomInt(DIRECTIONS.length);
+          while (dother === dwin) {
+            dother = randomInt(DIRECTIONS.length);
+          }
+          const winDir = DIRECTIONS[dwin];
+          const otherDir = DIRECTIONS[dother];
+
+          const board = createEmptyBoard();
+
+          // 勝ち方向: 中心を含む連続 5 連のうち、中心以外の 4 石を先置きする。
+          // 中心を start+offset の位置に置くよう offset をランダムに選び、
+          // 5 連 [offsetK - offset .. offsetK - offset + 4] が盤内に収まるものとする。
+          const winOffset = randomInt(WIN_LENGTH); // 0..4: 5 連中の中心の位置
+          let winPlaceable = true;
+          for (let k = 0; k < WIN_LENGTH; k++) {
+            const rel = k - winOffset; // 中心からの相対位置
+            if (rel === 0) {
+              continue; // 中心は target move で埋める
+            }
+            const r = cr + rel * winDir.dr;
+            const c = cc + rel * winDir.dc;
+            if (r < 0 || r >= BOARD_SIZE || c < 0 || c >= BOARD_SIZE) {
+              winPlaceable = false;
+              break;
+            }
+            board[r][c] = cell;
+          }
+          if (!winPlaceable) {
+            continue;
+          }
+
+          // もう 1 方向: 中心両隣へ黒石を先置きして Open_Three を作る。
+          const neighbors = neighborStonesFor(cr, cc, otherDir);
+          let otherPlaceable = true;
+          for (let j = 0; j < neighbors.length; j++) {
+            const p = neighbors[j];
+            if (p.row < 0 || p.row >= BOARD_SIZE || p.col < 0 || p.col >= BOARD_SIZE) {
+              otherPlaceable = false;
+              break;
+            }
+            board[p.row][p.col] = cell;
+          }
+          if (!otherPlaceable) {
+            continue;
+          }
+
+          const post = boardWithStone(board, cr, cc, cell);
+          if (
+            GoBoardLogic.checkWin(post, cr, cc) &&
+            GoBoardLogic.isDoubleThree(post, Color.BLACK)
+          ) {
+            return {
+              board: board,
+              move: { row: cr, col: cc },
+              currentTurn: Color.BLACK,
+              color: Color.BLACK,
+            };
+          }
+        }
+        // フォールバック: 中心 (7,7)。横方向に 5 連（(7,3)..(7,7)、target=(7,7)）、
+        // 縦方向に Open_Three（(6,7),(8,7)）を作る。
+        const board = createEmptyBoard();
+        board[7][3] = cell;
+        board[7][4] = cell;
+        board[7][5] = cell;
+        board[7][6] = cell;
+        board[6][7] = cell;
+        board[8][7] = cell;
+        return {
+          board: board,
+          move: { row: 7, col: 7 },
+          currentTurn: Color.BLACK,
+          color: Color.BLACK,
+        };
+      }
+
+      /* --- Task 7.2: 「既存 Open_Three ＋ 離れた 2 個目」ジェネレータ -----
+         連続3の同時2箇所成立の禁止の意味論は盤面全体の当該色 Open_Three 総数で定義されるため、
+         着手点と交わらない離れた既存 Open_Three が別途成立していても、今回の
+         着手が 2 個目を作れば Double_Three として拒否される（要件 1.5）。
+         これを明示的に構成するため、盤面を上下 2 領域に分け、上領域へ着手点と
+         無関係な黒 Open_Three を 1 個先置きし、下領域で今回の黒着手が 2 個目の
+         黒 Open_Three を成立させる。2 個は行番号で十分離れており、共通交点を
+         持たない。あわせて、同じ「離れた既存 1 個」を保ちつつ着手後も盤面全体の
+         黒 Open_Three を 1 個以下に留める受理ケースも用意する。 */
+
+      /**
+       * 指定行 row の (col, col+1, col+2) へ黒石を横 3 連として先置きした結果を、
+       * 渡された board（変更しない）の複製に反映して返す内部ヘルパ。両端外側
+       * (col-1) と (col+3) は空のまま残すため、単独で 1 個の黒 Open_Three となる。
+       * row は 0..14、col は 1..(BOARD_SIZE-4) を想定し、両端外側が盤内に収まる。
+       * @param {string[][]} board 元盤面
+       * @param {number} row 行
+       * @param {number} col 3 連の左端列
+       * @returns {string[][]} 横 3 連を先置きした複製盤面
+       */
+      function withHorizontalThree(board, row, col) {
+        const copy = cloneBoard(board);
+        copy[row][col] = CellState.BLACK;
+        copy[row][col + 1] = CellState.BLACK;
+        copy[row][col + 2] = CellState.BLACK;
+        return copy;
+      }
+
+      /**
+       * 着手点と無関係な黒 Open_Three を 1 個先置きし、今回の黒着手が離れた位置に
+       * 2 個目の黒 Open_Three を成立させる fixture を生成する（Task 7.2）。
+       *
+       * 上領域（行 1〜2）へ既存の横 3 連 Open_Three を 1 個先置きする。下領域
+       * （行 11〜13）で、着手点の横両隣（col±1）を黒で先置きし、target move で
+       * 中央を埋めると 2 個目の黒 Open_Three が成立する。2 個は行が大きく離れて
+       * おり共通交点を持たない。着手前盤面の黒 Open_Three が 1 個、着手後が 2 個
+       * かつ非 Win_Condition であることを検証する（外れた場合は上限まで再生成）。
+       * currentTurn は Color.BLACK。
+       * @returns {{
+       *   board: string[][],
+       *   move: {row:number, col:number},
+       *   currentTurn: string,
+       *   color: string
+       * }} 既存 1 個＋離れた 2 個目を作る黒 Double_Three fixture
+       */
+      function randomBlackDistantDoubleThree() {
+        const cell = CellState.BLACK;
+        const MAX_ATTEMPTS = 200;
+        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+          // 既存 Open_Three（上領域・行 1〜2）。左端列は 1..(BOARD_SIZE-4)。
+          const existRow = 1 + randomInt(2); // 1 .. 2
+          const existCol = 1 + randomInt(BOARD_SIZE - 4); // 1 .. 11
+
+          // 着手で作る 2 個目（下領域・行 11〜13）。中央列 mc の両隣を先置きする。
+          const moveRow = 11 + randomInt(3); // 11 .. 13
+          const mc = 2 + randomInt(BOARD_SIZE - 4); // 2 .. 12（両隣が盤内）
+
+          // 既存 Open_Three を先置きした盤面。
+          const board = withHorizontalThree(createEmptyBoard(), existRow, existCol);
+          // 着手点の横両隣（中央は target move で埋める）。
+          board[moveRow][mc - 1] = cell;
+          board[moveRow][mc + 1] = cell;
+
+          // 着手前は黒 Open_Three が 1 個であることを確認する。
+          const preCount = GoBoardLogic.computeThreeRegistry(board).black.length;
+          if (preCount !== 1) {
+            continue;
+          }
+
+          // target を置いた盤面で全盤面 2 個かつ非 Win_Condition を検証する。
+          const post = boardWithStone(board, moveRow, mc, cell);
+          const postCount = GoBoardLogic.computeThreeRegistry(post).black.length;
+          if (postCount === 2 && !GoBoardLogic.checkWin(post, moveRow, mc)) {
+            return {
+              board: board,
+              move: { row: moveRow, col: mc },
+              currentTurn: Color.BLACK,
+              color: Color.BLACK,
+            };
+          }
+        }
+        // フォールバック: 既存 (1,1)(1,2)(1,3)、着手 (13,7) で (13,6)(13,7)(13,8)。
+        const board = withHorizontalThree(createEmptyBoard(), 1, 1);
+        board[13][6] = cell;
+        board[13][8] = cell;
+        return {
+          board: board,
+          move: { row: 13, col: 7 },
+          currentTurn: Color.BLACK,
+          color: Color.BLACK,
+        };
+      }
+
+      /**
+       * 着手点と無関係な黒 Open_Three を 1 個先置きしつつ、今回の黒着手後も盤面
+       * 全体の黒 Open_Three を 1 個以下に保つ（受理される）fixture を生成する
+       * （Task 7.2）。
+       *
+       * 上領域（行 1〜2）へ既存の横 3 連 Open_Three を 1 個先置きする。下領域
+       * （行 11〜13）で、既存 Open_Three と交わらない孤立した空交点へ黒石を置く。
+       * 単独の 1 手は新たな Open_Three を作らないため、着手後も盤面全体の黒
+       * Open_Three は 1 個のままとなり applyMove に受理される。着手前・着手後
+       * ともに黒 Open_Three が 1 個であること、非 Win_Condition であることを検証
+       * する。currentTurn は Color.BLACK。
+       * @returns {{
+       *   board: string[][],
+       *   move: {row:number, col:number},
+       *   currentTurn: string,
+       *   color: string
+       * }} 既存 1 個を保ったまま受理される黒着手 fixture
+       */
+      function randomBlackDistantAccept() {
+        const cell = CellState.BLACK;
+        const MAX_ATTEMPTS = 200;
+        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+          const existRow = 1 + randomInt(2); // 1 .. 2
+          const existCol = 1 + randomInt(BOARD_SIZE - 4); // 1 .. 11
+
+          // 既存 Open_Three を先置きした盤面。
+          const board = withHorizontalThree(createEmptyBoard(), existRow, existCol);
+
+          // 下領域の孤立した空交点へ 1 手だけ置く（周囲に黒石を作らない）。
+          const moveRow = 11 + randomInt(3); // 11 .. 13
+          const mc = 2 + randomInt(BOARD_SIZE - 4); // 2 .. 12
+
+          // 着手前は黒 Open_Three が 1 個であることを確認する。
+          const preCount = GoBoardLogic.computeThreeRegistry(board).black.length;
+          if (preCount !== 1) {
+            continue;
+          }
+
+          // target を置いた盤面で全盤面 1 個以下かつ非 Win_Condition を検証する。
+          const post = boardWithStone(board, moveRow, mc, cell);
+          const postCount = GoBoardLogic.computeThreeRegistry(post).black.length;
+          if (postCount <= 1 && !GoBoardLogic.checkWin(post, moveRow, mc)) {
+            return {
+              board: board,
+              move: { row: moveRow, col: mc },
+              currentTurn: Color.BLACK,
+              color: Color.BLACK,
+            };
+          }
+        }
+        // フォールバック: 既存 (1,1)(1,2)(1,3)、孤立着手 (13,7)。
+        const board = withHorizontalThree(createEmptyBoard(), 1, 1);
+        return {
+          board: board,
+          move: { row: 13, col: 7 },
+          currentTurn: Color.BLACK,
+          color: Color.BLACK,
+        };
+      }
+
       return {
         randomInt: randomInt,
         randomInProgressState: randomInProgressState,
@@ -1092,6 +1884,12 @@
         randomOutOfBoundsCoord: randomOutOfBoundsCoord,
         randomInvalidCoord: randomInvalidCoord,
         randomFiveSetup: randomFiveSetup,
+        randomBlackDoubleThree: randomBlackDoubleThree,
+        randomWhiteDoubleThree: randomWhiteDoubleThree,
+        randomBlackSingleOpenThree: randomBlackSingleOpenThree,
+        randomBlackDoubleThreeWin: randomBlackDoubleThreeWin,
+        randomBlackDistantDoubleThree: randomBlackDistantDoubleThree,
+        randomBlackDistantAccept: randomBlackDistantAccept,
       };
     })();
 
@@ -2013,6 +2811,904 @@
       assertEqual(checked >= 100, true, '最低 100 回の引き分け成立を検証 (検証 ' + checked + ' 回)');
     });
 
+    /* --- findOpenThrees の例ベース単体テスト ------------------------
+       盤面全体を走査して Open_Three（同色ちょうど 3 個連続かつ延長可能な端を持つ並び）を
+       列挙する挙動を、決定的に構成した盤面で確認する。旧 detectOpenThrees（着手点ベース・
+       成立方向配列）の単体テストは task 1.3 で本テストへ置換した。連続 3 の検出、両端が
+       塞がれた連続 3 の除外、飛び三の非検出（旧セマンティクスの反転）を確認する。
+       Validates: Requirements 1.1, 1.2 */
+
+    // 空盤を 1 面作る補助。各テストで独立した盤面を用いる。
+    function gbEmptyBoard() {
+      return GoBoardLogic.createGame().board;
+    }
+
+    test('findOpenThrees: 連続 3（_ X X X _）を端が開いた Open_Three として検出', function () {
+      // 横方向 (7,6)(7,7)(7,8) に黒 3 連。両端 (7,5)(7,9) は空で 4 連へ延長可能。
+      const board = gbEmptyBoard();
+      board[7][6] = CellState.BLACK;
+      board[7][7] = CellState.BLACK;
+      board[7][8] = CellState.BLACK;
+
+      const threes = GoBoardLogic.findOpenThrees(board, Color.BLACK);
+
+      assertEqual(threes.length, 1, 'Open_Three は 1 個');
+      assertEqual(threes[0].color, Color.BLACK, '色は黒');
+      // 構成 3 交点は昇順に正規化される。
+      assertEqual(
+        threes[0].cells,
+        [{ row: 7, col: 6 }, { row: 7, col: 7 }, { row: 7, col: 8 }],
+        '構成 3 交点が連続 3 と一致'
+      );
+    });
+
+    test('findOpenThrees: 両端が塞がれた連続 3（O X X X O）は Open_Three と判定しない', function () {
+      // 盤端で塞がれるケース: 左端に寄せた黒 3 連 (7,0)(7,1)(7,2)。
+      // 左端 (7,-1) は盤外、右隣 (7,3) を白で塞ぐ。どちらの端も延長できない。
+      const boardEdge = gbEmptyBoard();
+      boardEdge[7][0] = CellState.BLACK;
+      boardEdge[7][1] = CellState.BLACK;
+      boardEdge[7][2] = CellState.BLACK;
+      boardEdge[7][3] = CellState.WHITE;
+
+      const edgeThrees = GoBoardLogic.findOpenThrees(boardEdge, Color.BLACK);
+      assertEqual(edgeThrees.length, 0, '盤端＋相手石で両端塞がれた 3 連は非 Open_Three');
+
+      // 相手石で両端を塞ぐケース: (7,6)(7,7)(7,8) の黒 3 連の両隣 (7,5)(7,9) を白。
+      const boardBlocked = gbEmptyBoard();
+      boardBlocked[7][5] = CellState.WHITE;
+      boardBlocked[7][6] = CellState.BLACK;
+      boardBlocked[7][7] = CellState.BLACK;
+      boardBlocked[7][8] = CellState.BLACK;
+      boardBlocked[7][9] = CellState.WHITE;
+
+      const blockedThrees = GoBoardLogic.findOpenThrees(boardBlocked, Color.BLACK);
+      assertEqual(blockedThrees.length, 0, '両端を相手石で塞がれた 3 連は非 Open_Three');
+    });
+
+    test('findOpenThrees: 飛び三（X X _ X）は Open_Three として返さない', function () {
+      // 横方向 (7,5)(7,6) 石・(7,7) 空・(7,8) 石。内部に空を 1 か所挟む同色 3 個。
+      // 旧セマンティクスでは飛び三を検出したが、新設計では連続 3 のみを Open_Three とし、
+      // 飛び三は返さない（旧セマンティクスの反転を明示する）。
+      const board = gbEmptyBoard();
+      board[7][5] = CellState.BLACK;
+      board[7][6] = CellState.BLACK;
+      board[7][8] = CellState.BLACK;
+
+      const threes = GoBoardLogic.findOpenThrees(board, Color.BLACK);
+
+      assertEqual(threes.length, 0, '飛び三は Open_Three ではない');
+    });
+
+    /* --- isDoubleThree の例ベース単体テスト -------------------------
+       着手点や方向ではなく、盤面全体に存在する当該色の Open_Three 総数で
+       Double_Three を判定する。黒 Open_Three が 2 個ある盤面で true、1 個以下で
+       false を返すこと、および互いに交わらない離れた 2 個でも true になることを
+       検証する（新意味論: 全盤面個数ベース）。
+       Validates: Requirements 1.1, 1.5 */
+
+    test('isDoubleThree: 盤面全体に黒 Open_Three が 2 個ある盤面で true', function () {
+      // 着手交点 (7,7) を中心に、横 (7,6)(7,7)(7,8) と縦 (6,7)(7,7)(8,7) の
+      // 連続 3 を同時に構成する。両端は空で 4 連へ延長可能。盤面全体で黒の
+      // Open_Three は横・縦の 2 個。
+      const board = gbEmptyBoard();
+
+      // 横方向の連続 3。
+      board[7][6] = CellState.BLACK;
+      board[7][7] = CellState.BLACK;
+      board[7][8] = CellState.BLACK;
+      // 縦方向の連続 3（(7,7) を共有）。
+      board[6][7] = CellState.BLACK;
+      board[8][7] = CellState.BLACK;
+
+      const result = GoBoardLogic.isDoubleThree(board, Color.BLACK);
+
+      assertEqual(result, true, '盤面全体の黒 Open_Three が 2 個なら Double_Three');
+    });
+
+    test('isDoubleThree: 盤面全体に黒 Open_Three が 1 個のみの盤面で false', function () {
+      // 横 (7,6)(7,7)(7,8) の連続 3 のみ。盤面全体で黒 Open_Three は 1 個。
+      const board = gbEmptyBoard();
+
+      board[7][6] = CellState.BLACK;
+      board[7][7] = CellState.BLACK;
+      board[7][8] = CellState.BLACK;
+
+      const result = GoBoardLogic.isDoubleThree(board, Color.BLACK);
+
+      assertEqual(result, false, '盤面全体の黒 Open_Three が 1 個なら Double_Three ではない');
+    });
+
+    test('isDoubleThree: 黒 Open_Three が 0 個の空盤で false', function () {
+      // 石が 1 つも無ければ Open_Three は成立しない。
+      const board = gbEmptyBoard();
+
+      const result = GoBoardLogic.isDoubleThree(board, Color.BLACK);
+
+      assertEqual(result, false, '黒 Open_Three が 0 個なら Double_Three ではない');
+    });
+
+    test('isDoubleThree: 互いに交わらない離れた黒 Open_Three 2 個でも true', function () {
+      // 交わらない 2 か所に横方向の連続 3 を配置する。両端は空で 4 連へ延長可能。
+      // (2,2)(2,3)(2,4) と、遠く離れた (11,10)(11,11)(11,12)。共通の交点を持たない。
+      const board = gbEmptyBoard();
+
+      // 1 個目: 盤面上部の横連続 3。
+      board[2][2] = CellState.BLACK;
+      board[2][3] = CellState.BLACK;
+      board[2][4] = CellState.BLACK;
+      // 2 個目: 盤面下部の横連続 3（1 個目と交わらない離れた位置）。
+      board[11][10] = CellState.BLACK;
+      board[11][11] = CellState.BLACK;
+      board[11][12] = CellState.BLACK;
+
+      const result = GoBoardLogic.isDoubleThree(board, Color.BLACK);
+
+      assertEqual(result, true, '離れて交わらない黒 Open_Three 2 個でも Double_Three');
+    });
+
+    /* --- computeThreeRegistry の例ベース単体テスト --------------------
+       黒・白を区別した Three_Registry の再計算を、findOpenThrees ベースの新
+       セマンティクスで確認する。空盤では黒・白とも 0 個であること、同一の連続 3 石を
+       異なる走査経路（起点・方向）で数えても 1 件に重複排除されること、および飛び三が
+       Registry に含まれないことを検証する。旧テストが参照していた findThreeInARow と
+       単一飛び 3 の期待は task 2.2 で除去した。
+       Validates: Requirements 2.1, 2.4 */
+
+    test('computeThreeRegistry: 空盤の Three_Registry は黒・白とも 0 個', function () {
+      const board = gbEmptyBoard();
+
+      const registry = GoBoardLogic.computeThreeRegistry(board);
+
+      assertEqual(registry.black.length, 0, '空盤の黒 Open_Three は 0 個');
+      assertEqual(registry.white.length, 0, '空盤の白 Open_Three は 0 個');
+    });
+
+    test('computeThreeRegistry: 同一の連続 3 石は 1 件に重複排除される', function () {
+      // 横方向 (7,6)(7,7)(7,8) の黒連続 3。両端 (7,5)(7,9) は空で 4 連へ延長可能。
+      // 走査は各起点・各方向の窓を横断するため、同じ 3 石が複数の経路から到達し得る。
+      // 正規化キーにより 1 件へ重複排除されることを確認する。
+      const board = gbEmptyBoard();
+      board[7][6] = CellState.BLACK;
+      board[7][7] = CellState.BLACK;
+      board[7][8] = CellState.BLACK;
+
+      const registry = GoBoardLogic.computeThreeRegistry(board);
+
+      assertEqual(registry.black.length, 1, '同一 3 石は Three_Registry で 1 件');
+      assertEqual(registry.white.length, 0, '白の Open_Three は 0 個');
+    });
+
+    test('computeThreeRegistry: 飛び三（X X _ X）は Registry に含まれない', function () {
+      // 横方向 (7,5)(7,6) 石・(7,7) 空・(7,8) 石。内部に空を挟む同色 3 個（飛び三）。
+      // 新設計では連続 3 のみを Open_Three とし、飛び三は Registry に登録されない
+      // （旧テストの単一飛び 3 期待を除去した）。
+      const board = gbEmptyBoard();
+      board[7][5] = CellState.BLACK;
+      board[7][6] = CellState.BLACK;
+      board[7][8] = CellState.BLACK;
+
+      const registry = GoBoardLogic.computeThreeRegistry(board);
+
+      assertEqual(registry.black.length, 0, '飛び三は Three_Registry に含まれない');
+      assertEqual(registry.white.length, 0, '白の Open_Three は 0 個');
+    });
+
+    /* --- applyMove（連続3の同時2箇所成立の禁止ラッパ）の例ベース単体テスト ------------
+       着手前 GameState は { board, currentTurn, status: IN_PROGRESS } で構築し、
+       applyMove の可否・理由・状態遷移・石配置を確認する。既存 placeStone は
+       変更せず、applyMove の後段判定（連続3の同時2箇所成立の禁止・Win 優先）のみを検証する。
+       Validates: Requirements 1.1, 1.2, 1.3, 1.4, 4.1 */
+
+    test('applyMove: 黒の連続3が2箇所成立する着手を DOUBLE_THREE で拒否し盤面・手番を保持', function () {
+      // 着手交点 (7,7) を中心に、横 (7,6)(7,8) と縦 (6,7)(8,7) に黒を先置きする。
+      // (7,7) へ黒を置くと横・縦の 2 方向で Open_Three が成立し（5 連にはならない）、
+      // Double_Three として拒否される。
+      const board = gbEmptyBoard();
+      board[7][6] = CellState.BLACK;
+      board[7][8] = CellState.BLACK;
+      board[6][7] = CellState.BLACK;
+      board[8][7] = CellState.BLACK;
+
+      // 着手前盤面のスナップショット（拒否時に不変であることの比較用）。
+      const before = board.map(function (cells) { return cells.slice(); });
+
+      const state = {
+        board: board,
+        currentTurn: Color.BLACK,
+        status: GameStatus.IN_PROGRESS,
+      };
+
+      const result = GoBoardLogic.applyMove(state, 7, 7);
+
+      assertEqual(result.valid, false, '黒の連続3が2箇所成立する着手は無効');
+      assertEqual(result.reason, InvalidReason.DOUBLE_THREE, '無効理由は DOUBLE_THREE');
+      assertEqual(result.state.board, before, '盤面は着手前と同一（石を置かない）');
+      assertEqual(result.state.currentTurn, Color.BLACK, 'Current_Turn は着手前（黒）のまま');
+    });
+
+    test('applyMove: 離れた位置に 2 個目の黒 Open_Three を作る手を DOUBLE_THREE で拒否', function () {
+      // 全盤面個数の意味論（要件 1.5）: 着手点と交わらない既存の黒 Open_Three が
+      // 1 個あるとき、離れた位置に 2 個目の黒 Open_Three を成立させる黒着手は、
+      // 盤面全体の黒 Open_Three が合計 2 個となるため Double_Three として拒否される。
+      const board = gbEmptyBoard();
+      // 既存の黒 Open_Three（着手点と無関係）: 盤面上部の横連続 3。
+      // 両端 (2,1)(2,5) は空で 4 連へ延長可能。
+      board[2][2] = CellState.BLACK;
+      board[2][3] = CellState.BLACK;
+      board[2][4] = CellState.BLACK;
+      // 着手で 2 個目を作るための布石: 下部の横 (11,10)(11,12) を先置きし、
+      // (11,11) を置くと (11,10)(11,11)(11,12) の連続 3 が成立する。1 個目とは交わらない。
+      board[11][10] = CellState.BLACK;
+      board[11][12] = CellState.BLACK;
+
+      // 着手前盤面のスナップショット（拒否時に不変であることの比較用）。
+      const before = board.map(function (cells) { return cells.slice(); });
+
+      const state = {
+        board: board,
+        currentTurn: Color.BLACK,
+        status: GameStatus.IN_PROGRESS,
+      };
+
+      const result = GoBoardLogic.applyMove(state, 11, 11);
+
+      assertEqual(result.valid, false, '離れた 2 個目を作る黒着手は無効');
+      assertEqual(result.reason, InvalidReason.DOUBLE_THREE, '無効理由は DOUBLE_THREE');
+      assertEqual(result.state.board, before, '盤面は着手前と同一（石を置かない）');
+      assertEqual(result.state.currentTurn, Color.BLACK, 'Current_Turn は着手前（黒）のまま');
+    });
+
+    test('applyMove: 着手後の黒 Open_Three が 1 個以下となる手は受理し石を配置', function () {
+      // 横 (7,6)(7,8) のみ黒を先置き。(7,7) へ黒を置くと横 (7,6)(7,7)(7,8) の連続 3 が
+      // 1 個だけ成立する（両端 (7,5)(7,9) は空で 4 連へ延長可能）。盤面全体の黒
+      // Open_Three が合計 1 個以下に収まるため、新意味論（全盤面個数）で受理される。
+      const board = gbEmptyBoard();
+      board[7][6] = CellState.BLACK;
+      board[7][8] = CellState.BLACK;
+
+      const state = {
+        board: board,
+        currentTurn: Color.BLACK,
+        status: GameStatus.IN_PROGRESS,
+      };
+
+      const result = GoBoardLogic.applyMove(state, 7, 7);
+
+      assertEqual(result.valid, true, '黒 Open_Three が 1 個以下となる着手は有効');
+      assertEqual(result.state.board[7][7], CellState.BLACK, '着手交点に黒石を配置');
+      assertEqual(result.registry.black.length, 1, '確定後盤面の黒 Open_Three は 1 個');
+    });
+
+    test('applyMove: 白の Double_Three 着手を受理し石を配置', function () {
+      // 横 (7,6)(7,8) と縦 (6,7)(8,7) に白を先置き。手番を白にし、(7,7) へ白を置くと
+      // 2 方向で Open_Three が成立するが、連続3の同時2箇所成立の禁止は黒のみに適用するため受理される。
+      const board = gbEmptyBoard();
+      board[7][6] = CellState.WHITE;
+      board[7][8] = CellState.WHITE;
+      board[6][7] = CellState.WHITE;
+      board[8][7] = CellState.WHITE;
+
+      const state = {
+        board: board,
+        currentTurn: Color.WHITE,
+        status: GameStatus.IN_PROGRESS,
+      };
+
+      const result = GoBoardLogic.applyMove(state, 7, 7);
+
+      assertEqual(result.valid, true, '白の Double_Three 着手は受理される');
+      assertEqual(result.state.board[7][7], CellState.WHITE, '着手交点に白石を配置');
+    });
+
+    test('applyMove: 黒の連続3が2箇所成立しかつ 5 連の着手は BLACK_WIN（Win 優先）', function () {
+      // 横 (7,5)(7,6)(7,8)(7,9) を黒で先置きし、(7,7) を置くと横に 5 連が成立する。
+      // あわせて縦 (6,7)(8,7) の黒で縦方向の Open_Three も成立するため連続3が2箇所成立してもいるが、
+      // Win_Condition を優先して受理し BLACK_WIN とする。
+      const board = gbEmptyBoard();
+      board[7][5] = CellState.BLACK;
+      board[7][6] = CellState.BLACK;
+      board[7][8] = CellState.BLACK;
+      board[7][9] = CellState.BLACK;
+      board[6][7] = CellState.BLACK;
+      board[8][7] = CellState.BLACK;
+
+      const state = {
+        board: board,
+        currentTurn: Color.BLACK,
+        status: GameStatus.IN_PROGRESS,
+      };
+
+      const result = GoBoardLogic.applyMove(state, 7, 7);
+
+      assertEqual(result.valid, true, '連続3が2箇所成立しかつ 5 連の着手は受理される');
+      assertEqual(result.state.status, GameStatus.BLACK_WIN, 'Game_Status は BLACK_WIN');
+    });
+
+    /* --- local-rules プロパティテスト --------------------------------
+       連続3の同時2箇所成立の禁止ローカルルールの追加純粋関数（applyMove / findOpenThrees /
+       isDoubleThree / computeThreeRegistry）に対する Correctness Property（P1〜P10）を
+       それぞれ 1 つのプロパティベーステスト（最低 100 回のランダム反復）として
+       実装する。判定意味論は「確定後盤面全体の当該色 Open_Three 総数」に基づく。
+       fixture 生成には GB_GEN の各ジェネレータを用いる。旧セマンティクス
+       （着手点を通る方向数・飛び三）に依存するプロパティテストは撤去し、
+       旧関数 detectOpenThrees / isDoubleThreeMove / findThreeInARow は参照しない。 */
+
+    // Feature: local-rules, Property 1: 黒の連続3が2箇所成立する着手は無効となり状態を変えない
+    // 任意の進行中 GameState と、Black_Player の手番における空交点への着手について、
+    // その着手を適用した後の盤面全体に黒の Open_Three が合計 2 個以上存在し、かつ
+    // Win_Condition を成立させないならば、applyMove の結果は valid=false・
+    // reason=DOUBLE_THREE となり、盤面・Current_Turn・Game_Status・Three_Registry は
+    // いずれも着手前と等しいまま保持される。着手点十字型と、離れた 2 個目型の双方の
+    // fixture を交互に用いる。
+    // Validates: Requirements 1.1, 4.1
+    test('Property 1: 黒の連続3が2箇所成立する着手は無効となり状態を変えない', function () {
+      const ITERATIONS = 120; // 最低 100 回のランダム反復
+      let checked = 0;
+      for (let iter = 0; iter < ITERATIONS; iter++) {
+        // 着手点十字型（randomBlackDoubleThree）と離れた 2 個目型
+        // （randomBlackDistantDoubleThree）を交互に用いる。
+        const fx = (iter % 2 === 0)
+          ? GB_GEN.randomBlackDoubleThree()
+          : GB_GEN.randomBlackDistantDoubleThree();
+        const state = {
+          board: fx.board,
+          currentTurn: Color.BLACK,
+          status: GameStatus.IN_PROGRESS,
+        };
+
+        // 着手前のスナップショット（盤面・手番・状態・Three_Registry）。
+        const preBoard = JSON.stringify(state.board);
+        const preTurn = state.currentTurn;
+        const preStatus = state.status;
+        const preRegistry = JSON.stringify(GoBoardLogic.computeThreeRegistry(state.board));
+
+        const result = GoBoardLogic.applyMove(state, fx.move.row, fx.move.col);
+
+        const ctx = 'iter=' + iter + ' 着手=(' + fx.move.row + ',' + fx.move.col + ')';
+
+        assertEqual(result.valid, false, '黒の連続3が2箇所成立する着手は無効 [' + ctx + ']');
+        assertEqual(result.reason, InvalidReason.DOUBLE_THREE,
+          '無効理由は DOUBLE_THREE [' + ctx + ']');
+
+        // 状態は着手前と等しいまま保持される。
+        assertEqual(JSON.stringify(result.state.board), preBoard,
+          '盤面が着手前と同一 [' + ctx + ']');
+        assertEqual(result.state.currentTurn, preTurn,
+          'Current_Turn が着手前と同一 [' + ctx + ']');
+        assertEqual(result.state.status, preStatus,
+          'Game_Status が着手前と同一 [' + ctx + ']');
+        assertEqual(JSON.stringify(result.registry), preRegistry,
+          'Three_Registry が着手前と同一 [' + ctx + ']');
+
+        checked++;
+      }
+      assertEqual(checked >= 100, true, '最低 100 回検証 (検証 ' + checked + ' 回)');
+    });
+
+    // Feature: local-rules, Property 2: 黒 Open_Three が 1 個以下となる着手は受理される
+    // 任意の進行中 GameState と、Black_Player の空交点への着手について、その着手を
+    // 適用した後の盤面全体に黒の Open_Three が合計 1 個以下しか存在せず、かつ
+    // Win_Condition を成立させないならば、applyMove の結果は valid=true となり、当該
+    // 交点に黒の Stone が配置される。単独 Open_Three 型（randomBlackSingleOpenThree）と
+    // 「既存 1 個を保つ」型（randomBlackDistantAccept）を交互に用いる。
+    // Validates: Requirements 1.2
+    test('Property 2: 黒 Open_Three が 1 個以下となる着手は受理される', function () {
+      const ITERATIONS = 120;
+      let checked = 0;
+      for (let iter = 0; iter < ITERATIONS; iter++) {
+        const fx = (iter % 2 === 0)
+          ? GB_GEN.randomBlackSingleOpenThree()
+          : GB_GEN.randomBlackDistantAccept();
+        const state = {
+          board: fx.board,
+          currentTurn: Color.BLACK,
+          status: GameStatus.IN_PROGRESS,
+        };
+
+        const result = GoBoardLogic.applyMove(state, fx.move.row, fx.move.col);
+
+        const ctx = 'iter=' + iter + ' 着手=(' + fx.move.row + ',' + fx.move.col + ')';
+
+        assertEqual(result.valid, true,
+          '黒 Open_Three 1 個以下の着手は有効 [' + ctx + ']');
+        assertEqual(result.state.board[fx.move.row][fx.move.col], CellState.BLACK,
+          '着手交点に黒石を配置 [' + ctx + ']');
+
+        checked++;
+      }
+      assertEqual(checked >= 100, true, '最低 100 回検証 (検証 ' + checked + ' 回)');
+    });
+
+    // Feature: local-rules, Property 3: 白の連続3が2箇所成立する着手は受理される
+    // 任意の進行中 GameState で Current_Turn が White_Player のとき、着手を適用した
+    // 後の盤面全体に白の Open_Three が合計 2 個以上存在しても、applyMove は連続3の同時2箇所成立の禁止を
+    // 適用せず valid=true となり、当該交点に白の Stone が配置される。
+    // fixture は GB_GEN.randomWhiteDoubleThree() で構成する（currentTurn=WHITE）。
+    // Validates: Requirements 1.3
+    test('Property 3: 白の連続3が2箇所成立する着手は受理される', function () {
+      const ITERATIONS = 120;
+      let checked = 0;
+      for (let iter = 0; iter < ITERATIONS; iter++) {
+        const fx = GB_GEN.randomWhiteDoubleThree();
+        const state = {
+          board: fx.board,
+          currentTurn: Color.WHITE,
+          status: GameStatus.IN_PROGRESS,
+        };
+
+        const result = GoBoardLogic.applyMove(state, fx.move.row, fx.move.col);
+
+        const ctx = '着手=(' + fx.move.row + ',' + fx.move.col + ')';
+
+        assertEqual(result.valid, true, '白の連続3が2箇所成立する着手は受理される [' + ctx + ']');
+        assertEqual(result.state.board[fx.move.row][fx.move.col], CellState.WHITE,
+          '着手交点に白石を配置 [' + ctx + ']');
+
+        checked++;
+      }
+      assertEqual(checked >= 100, true, '最低 100 回検証 (検証 ' + checked + ' 回)');
+    });
+
+    // Feature: local-rules, Property 4: Win_Condition は連続3の同時2箇所成立の禁止より優先される
+    // 任意の進行中 GameState と、Black_Player の空交点への着手について、その着手が
+    // Double_Three（着手後の黒 Open_Three が 2 個以上）を成立させ、かつ同一の着手が
+    // いずれかの Line 上で同色 5 個以上の連続（Win_Condition）を成立させるならば、
+    // applyMove は valid=true となり、当該交点に黒の Stone を配置し、Game_Status を
+    // BLACK_WIN に設定する。fixture は GB_GEN.randomBlackDoubleThreeWin() で構成する。
+    // Validates: Requirements 1.4
+    test('Property 4: Win_Condition は連続3の同時2箇所成立の禁止より優先される', function () {
+      const ITERATIONS = 120;
+      let checked = 0;
+      for (let iter = 0; iter < ITERATIONS; iter++) {
+        const fx = GB_GEN.randomBlackDoubleThreeWin();
+        const state = {
+          board: fx.board,
+          currentTurn: Color.BLACK,
+          status: GameStatus.IN_PROGRESS,
+        };
+
+        const result = GoBoardLogic.applyMove(state, fx.move.row, fx.move.col);
+
+        const ctx = '着手=(' + fx.move.row + ',' + fx.move.col + ')';
+
+        assertEqual(result.valid, true, '連続3が2箇所成立しかつ 5 連の着手は受理される [' + ctx + ']');
+        assertEqual(result.state.status, GameStatus.BLACK_WIN,
+          'Game_Status は BLACK_WIN [' + ctx + ']');
+        assertEqual(result.state.board[fx.move.row][fx.move.col], CellState.BLACK,
+          '着手交点に黒石を配置 [' + ctx + ']');
+
+        checked++;
+      }
+      assertEqual(checked >= 100, true, '最低 100 回検証 (検証 ' + checked + ' 回)');
+    });
+
+    // Feature: local-rules, Property 5: 有効着手後の Three_Registry は確定後盤面と一致する
+    // 任意の有効な着手について、applyMove が返す Three_Registry の黒・白の各集合は、
+    // 確定後盤面に対して computeThreeRegistry を独立に適用した結果と等しい（同一の
+    // 位置集合を持つ）。有効着手の多様性を得るため、受理が保証された複数のジェネレータを
+    // ローテーションで用いる。
+    // Validates: Requirements 2.2
+    test('Property 5: 有効着手後の Three_Registry は確定後盤面と一致する', function () {
+      const ITERATIONS = 120;
+      let checked = 0;
+      for (let iter = 0; iter < ITERATIONS; iter++) {
+        // 有効になることが保証された着手をローテーションで生成する。
+        let fx;
+        let turn;
+        const kind = iter % 3;
+        if (kind === 0) {
+          fx = GB_GEN.randomBlackSingleOpenThree();
+          turn = Color.BLACK;
+        } else if (kind === 1) {
+          fx = GB_GEN.randomWhiteDoubleThree();
+          turn = Color.WHITE;
+        } else {
+          fx = GB_GEN.randomBlackDistantAccept();
+          turn = Color.BLACK;
+        }
+        const state = {
+          board: fx.board,
+          currentTurn: turn,
+          status: GameStatus.IN_PROGRESS,
+        };
+
+        const result = GoBoardLogic.applyMove(state, fx.move.row, fx.move.col);
+
+        const ctx = 'iter=' + iter + ' 着手=(' + fx.move.row + ',' + fx.move.col +
+          ') 手番=' + turn;
+
+        // 前提: この着手は有効である。
+        assertEqual(result.valid, true, '着手が有効 [' + ctx + ']');
+
+        // 確定後盤面から独立に再計算した Three_Registry と一致する（黒・白とも）。
+        const recomputed = GoBoardLogic.computeThreeRegistry(result.state.board);
+        assertEqual(result.registry.black, recomputed.black,
+          '黒の Three_Registry が確定後盤面と一致 [' + ctx + ']');
+        assertEqual(result.registry.white, recomputed.white,
+          '白の Three_Registry が確定後盤面と一致 [' + ctx + ']');
+
+        checked++;
+      }
+      assertEqual(checked >= 100, true, '最低 100 回検証 (検証 ' + checked + ' 回)');
+    });
+
+    // Feature: local-rules, Property 6: 無効着手では Three_Registry が変化しない
+    // 任意の無効な着手（既石・範囲外・不正座標・終局・黒の連続3が2箇所成立する着手のいずれか）について、
+    // applyMove が返す Three_Registry は着手前の Three_Registry と等しいまま変化しない。
+    // 5 カテゴリの無効着手をローテーションで生成し、valid=false と registry 不変を検証する。
+    // Validates: Requirements 2.3, 3.4
+    test('Property 6: 無効着手では Three_Registry が変化しない', function () {
+      const randomInt = function (n) {
+        return Math.floor(Math.random() * n);
+      };
+      // 盤面上の非空交点を 1 つ返す（無ければ null）。
+      const anyOccupiedCell = function (board) {
+        const cells = [];
+        for (let r = 0; r < BOARD_SIZE; r++) {
+          for (let c = 0; c < BOARD_SIZE; c++) {
+            if (board[r][c] !== CellState.EMPTY) {
+              cells.push({ row: r, col: c });
+            }
+          }
+        }
+        return cells.length === 0 ? null : cells[randomInt(cells.length)];
+      };
+
+      const ITERATIONS = 150; // 5 カテゴリを回すため多めに反復する
+      let checked = 0;
+      let attempts = 0;
+      const maxAttempts = ITERATIONS * 10;
+      while (checked < ITERATIONS && attempts < maxAttempts) {
+        attempts++;
+        const category = attempts % 5;
+
+        let state;
+        let move;
+        let label;
+
+        if (category === 0) {
+          // 黒の連続3が2箇所成立する着手（DOUBLE_THREE）による無効。
+          const fx = GB_GEN.randomBlackDoubleThree();
+          state = { board: fx.board, currentTurn: Color.BLACK, status: GameStatus.IN_PROGRESS };
+          move = { row: fx.move.row, col: fx.move.col };
+          label = 'DOUBLE_THREE';
+        } else if (category === 1) {
+          // 既石（OCCUPIED）による無効。
+          state = GB_GEN.randomInProgressState(20);
+          const occ = anyOccupiedCell(state.board);
+          if (occ === null) {
+            continue; // 石が無い盤面はスキップして作り直す
+          }
+          move = occ;
+          label = 'OCCUPIED';
+        } else if (category === 2) {
+          // 範囲外（OUT_OF_BOUNDS）による無効。
+          state = GB_GEN.randomInProgressState(20);
+          move = GB_GEN.randomOutOfBoundsCoord();
+          label = 'OUT_OF_BOUNDS';
+        } else if (category === 3) {
+          // 不正座標（INVALID_COORDINATE）による無効。
+          state = GB_GEN.randomInProgressState(20);
+          move = GB_GEN.randomInvalidCoord();
+          label = 'INVALID_COORDINATE';
+        } else {
+          // 終局（NOT_IN_PROGRESS）による無効。進行中状態を終局状態へ差し替える。
+          const base = GB_GEN.randomInProgressState(20);
+          state = { board: base.board, currentTurn: base.currentTurn, status: GameStatus.BLACK_WIN };
+          move = GB_GEN.randomEmptyCell(state.board);
+          if (move === null) {
+            continue;
+          }
+          label = 'NOT_IN_PROGRESS';
+        }
+
+        // 着手前の Three_Registry をスナップショットする。
+        const preRegistry = JSON.stringify(GoBoardLogic.computeThreeRegistry(state.board));
+
+        const result = GoBoardLogic.applyMove(state, move.row, move.col);
+
+        const ctx = label + ' 着手=(' + move.row + ',' + move.col + ')';
+
+        assertEqual(result.valid, false, '無効な着手である [' + ctx + ']');
+        assertEqual(JSON.stringify(result.registry), preRegistry,
+          'Three_Registry が着手前と同一 [' + ctx + ']');
+
+        checked++;
+      }
+      assertEqual(checked >= 100, true, '最低 100 回検証 (検証 ' + checked + ' 回)');
+    });
+
+    // Feature: local-rules, Property 7: Three_Registry は色ごとに分離され重複を持たない
+    // 任意の盤面について、computeThreeRegistry が返す Three_Registry は、黒の集合には
+    // 黒の Open_Three のみ・白の集合には白の Open_Three のみを含み、各集合内に同一の
+    // Open_Three（同一の正規化キー）を重複して持たず、各要素は当該色の妥当な
+    // Open_Three である。盤面は GB_GEN.randomInProgressState() で生成する。
+    // Validates: Requirements 2.4
+    test('Property 7: Three_Registry は色ごとに分離され重複を持たない', function () {
+      const randomInt = function (n) {
+        return Math.floor(Math.random() * n);
+      };
+      // 集合内の key に重複が無いことを確認する。
+      const hasUniqueKeys = function (entries) {
+        const seen = {};
+        for (let i = 0; i < entries.length; i++) {
+          const key = entries[i].key;
+          if (Object.prototype.hasOwnProperty.call(seen, key)) {
+            return false;
+          }
+          seen[key] = true;
+        }
+        return true;
+      };
+
+      const ITERATIONS = 120;
+      let checked = 0;
+      for (let iter = 0; iter < ITERATIONS; iter++) {
+        const state = GB_GEN.randomInProgressState(randomInt(30));
+        const registry = GoBoardLogic.computeThreeRegistry(state.board);
+
+        const ctx = 'iter=' + iter +
+          ' black=' + registry.black.length + ' white=' + registry.white.length;
+
+        // 黒の集合には黒の Open_Three のみ。
+        for (let i = 0; i < registry.black.length; i++) {
+          assertEqual(registry.black[i].color, Color.BLACK,
+            '黒集合の要素の色は BLACK [' + ctx + ']');
+        }
+        // 白の集合には白の Open_Three のみ。
+        for (let i = 0; i < registry.white.length; i++) {
+          assertEqual(registry.white[i].color, Color.WHITE,
+            '白集合の要素の色は WHITE [' + ctx + ']');
+        }
+        // 各集合内で key は一意（重複を持たない）。
+        assertEqual(hasUniqueKeys(registry.black), true,
+          '黒集合内の key が一意 [' + ctx + ']');
+        assertEqual(hasUniqueKeys(registry.white), true,
+          '白集合内の key が一意 [' + ctx + ']');
+
+        checked++;
+      }
+      assertEqual(checked >= 100, true, '最低 100 回検証 (検証 ' + checked + ' 回)');
+    });
+
+    // Feature: local-rules, Property 8: 検出される並びは常に延長可能な連続 3 の Open_Three である
+    // 任意の盤面と色について、findOpenThrees(board, color) が返す各要素は、当該色の
+    // ちょうど 3 個が Line 上で隙間なく連続し、かつ少なくとも一方の端が盤内の空
+    // Intersection で延長可能な並びである。飛び三、および両端が相手 Stone・盤端で
+    // 塞がれた連続 3 は返されない。ランダム進行中盤面を入力とし、旧 P8（方向を返す）を
+    // 置換する。
+    // Validates: Requirements 1.1, 2.2
+    test('Property 8: 検出される並びは常に延長可能な連続 3 の Open_Three である', function () {
+      const randomInt = function (n) {
+        return Math.floor(Math.random() * n);
+      };
+      const inBoard = function (r, c) {
+        return r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE;
+      };
+      const cellFor = function (color) {
+        return color === Color.BLACK ? CellState.BLACK : CellState.WHITE;
+      };
+
+      const ITERATIONS = 130;
+      let checked = 0;
+      for (let iter = 0; iter < ITERATIONS; iter++) {
+        const state = GB_GEN.randomInProgressState(randomInt(40));
+        const board = state.board;
+        const color = (randomInt(2) === 0) ? Color.BLACK : Color.WHITE;
+        const stone = cellFor(color);
+        const opponent = (color === Color.BLACK) ? CellState.WHITE : CellState.BLACK;
+
+        const opens = GoBoardLogic.findOpenThrees(board, color);
+        const ctx = 'iter=' + iter + ' color=' + color + ' count=' + opens.length;
+
+        for (let i = 0; i < opens.length; i++) {
+          const ot = opens[i];
+          // 色は対象色。
+          assertEqual(ot.color, color, '要素の色が対象色 [' + ctx + ']');
+          // ちょうど 3 交点で構成される。
+          assertEqual(ot.cells.length, 3, '構成は 3 交点 [' + ctx + ']');
+
+          const cells = ot.cells;
+          // 3 交点はすべて盤内かつ対象色の石である。
+          let allStone = true;
+          for (let k = 0; k < 3; k++) {
+            const p = cells[k];
+            if (!inBoard(p.row, p.col) || board[p.row][p.col] !== stone) {
+              allStone = false;
+            }
+          }
+          assertEqual(allStone, true, '3 交点すべてが対象色の石 [' + ctx + ']');
+
+          // 隙間なく連続する（等間隔・一直線）。方向ベクトルは cells[1]-cells[0] で、
+          // cells[2]-cells[1] と一致し、かつ単位ステップ（各成分が -1/0/1）である。
+          const dr1 = cells[1].row - cells[0].row;
+          const dc1 = cells[1].col - cells[0].col;
+          const dr2 = cells[2].row - cells[1].row;
+          const dc2 = cells[2].col - cells[1].col;
+          const consecutive =
+            (dr1 === dr2 && dc1 === dc2) &&
+            (Math.abs(dr1) <= 1 && Math.abs(dc1) <= 1) &&
+            !(dr1 === 0 && dc1 === 0);
+          assertEqual(consecutive, true,
+            '3 交点が隙間なく連続 [' + ctx + ' cells=' + JSON.stringify(cells) + ']');
+
+          // 少なくとも一方の端が盤内かつ空で延長可能である（前端外側 or 後端外側）。
+          const before = { row: cells[0].row - dr1, col: cells[0].col - dc1 };
+          const after = { row: cells[2].row + dr1, col: cells[2].col + dc1 };
+          const beforeOpen =
+            inBoard(before.row, before.col) &&
+            board[before.row][before.col] === CellState.EMPTY;
+          const afterOpen =
+            inBoard(after.row, after.col) &&
+            board[after.row][after.col] === CellState.EMPTY;
+          assertEqual(beforeOpen || afterOpen, true,
+            '少なくとも一方の端が空で延長可能 [' + ctx + ']');
+
+          // 相手石・盤端で両端が塞がれた連続 3 は返らない（上と同値だが明示検証）。
+          const bothBlocked =
+            (!inBoard(before.row, before.col) ||
+              board[before.row][before.col] === opponent) &&
+            (!inBoard(after.row, after.col) ||
+              board[after.row][after.col] === opponent);
+          assertEqual(bothBlocked, false, '両端閉塞の連続 3 は返らない [' + ctx + ']');
+        }
+
+        checked++;
+      }
+      assertEqual(checked >= 100, true, '最低 100 回検証 (検証 ' + checked + ' 回)');
+    });
+
+    // Feature: local-rules, Property 9: 黒の連続3が2箇所成立する着手以外では applyMove は placeStone と同一の可否・状態を返す
+    // 任意の GameState と着手について、その着手が「Black_Player の連続3が2箇所成立する着手（着手後の黒
+    // Open_Three が 2 個以上）かつ非 Win_Condition」に該当しないならば、applyMove の
+    // valid・reason・state（board / currentTurn / status）は、既存 placeStone を同一
+    // 入力で呼んだ結果と等しい。ランダム進行中盤面に対しランダムな着手（空交点・
+    // 範囲外・不正座標）を与え、除外条件に該当する反復のみスキップする。
+    // Validates: Requirements 5.2
+    test('Property 9: 黒の連続3が2箇所成立する着手以外では applyMove は placeStone と同一の可否・状態を返す', function () {
+      const randomInt = function (n) {
+        return Math.floor(Math.random() * n);
+      };
+      // ランダムな着手座標を 3 カテゴリ（空交点・範囲外・不正座標）から選ぶ。
+      const randomMove = function (board) {
+        const kind = randomInt(3);
+        if (kind === 0) {
+          const empty = GB_GEN.randomEmptyCell(board);
+          if (empty !== null) {
+            return empty;
+          }
+          return GB_GEN.randomOutOfBoundsCoord();
+        }
+        if (kind === 1) {
+          return GB_GEN.randomOutOfBoundsCoord();
+        }
+        return GB_GEN.randomInvalidCoord();
+      };
+
+      const ITERATIONS = 150;
+      let checked = 0;
+      let attempts = 0;
+      const maxAttempts = ITERATIONS * 20;
+      while (checked < ITERATIONS && attempts < maxAttempts) {
+        attempts++;
+
+        const state = GB_GEN.randomInProgressState(randomInt(30));
+        const move = randomMove(state.board);
+
+        // 除外判定: 「黒の連続3が2箇所成立する着手（着手後の黒 Open_Three が 2 個以上）かつ非 Win_Condition」に
+        // 該当する着手はスキップ。placeStone が有効で、黒手番、着手後盤面の黒 Open_Three が
+        // 2 個以上、かつ非勝ちなら除外対象。判定は確定後盤面全体の個数で行う。
+        const probe = GoBoardLogic.placeStone(state, move.row, move.col);
+        if (probe.valid && state.currentTurn === Color.BLACK) {
+          const postBoard = probe.state.board;
+          const win = probe.state.status === GameStatus.BLACK_WIN;
+          if (!win && GoBoardLogic.isDoubleThree(postBoard, Color.BLACK)) {
+            continue; // 黒の連続3が2箇所成立する着手（非 Win）は applyMove が placeStone と異なるため除外
+          }
+        }
+
+        // applyMove と placeStone を同一入力で呼び、可否・理由・状態の一致を検証する。
+        const applied = GoBoardLogic.applyMove(state, move.row, move.col);
+        const placed = GoBoardLogic.placeStone(state, move.row, move.col);
+
+        const ctx = '着手=(' + move.row + ',' + move.col + ') 手番=' + state.currentTurn;
+
+        assertEqual(applied.valid, placed.valid, 'valid が一致 [' + ctx + ']');
+        assertEqual(applied.reason, placed.reason, 'reason が一致 [' + ctx + ']');
+        assertEqual(JSON.stringify(applied.state.board), JSON.stringify(placed.state.board),
+          'board が一致 [' + ctx + ']');
+        assertEqual(applied.state.currentTurn, placed.state.currentTurn,
+          'currentTurn が一致 [' + ctx + ']');
+        assertEqual(applied.state.status, placed.state.status,
+          'status が一致 [' + ctx + ']');
+
+        checked++;
+      }
+      assertEqual(checked >= 100, true, '最低 100 回検証 (検証 ' + checked + ' 回)');
+    });
+
+    // Feature: local-rules, Property 10: 禁止判定は Three_Registry の黒個数と一致する（唯一の情報源）
+    // 任意の進行中 GameState と Black_Player の非 Win_Condition の空交点着手について、
+    // applyMove が DOUBLE_THREE で拒否することと、確定後盤面に対する
+    // computeThreeRegistry(board).black.length >= 2 が真であることは同値である。すなわち、
+    // ログに出力される個数と禁止判定に用いる個数は常に一致する。連続3が2箇所成立する型・受理型の
+    // fixture に加えランダム進行中盤面上の黒着手も入力し、両分岐を確実に踏む。
+    // Validates: Requirements 1.1, 3.3
+    test('Property 10: 禁止判定は Three_Registry の黒個数と一致する（唯一の情報源）', function () {
+      const randomInt = function (n) {
+        return Math.floor(Math.random() * n);
+      };
+
+      const ITERATIONS = 160; // スキップを見込み多めに反復する
+      let checked = 0;
+      let attempts = 0;
+      const maxAttempts = ITERATIONS * 20;
+      while (checked < ITERATIONS && attempts < maxAttempts) {
+        attempts++;
+
+        // 入力源をローテーションし、拒否分岐と受理分岐の双方を確実に踏む。
+        let state;
+        let move;
+        const source = attempts % 4;
+        if (source === 0) {
+          const fx = GB_GEN.randomBlackDoubleThree();
+          state = { board: fx.board, currentTurn: Color.BLACK, status: GameStatus.IN_PROGRESS };
+          move = { row: fx.move.row, col: fx.move.col };
+        } else if (source === 1) {
+          const fx = GB_GEN.randomBlackDistantDoubleThree();
+          state = { board: fx.board, currentTurn: Color.BLACK, status: GameStatus.IN_PROGRESS };
+          move = { row: fx.move.row, col: fx.move.col };
+        } else if (source === 2) {
+          const fx = GB_GEN.randomBlackSingleOpenThree();
+          state = { board: fx.board, currentTurn: Color.BLACK, status: GameStatus.IN_PROGRESS };
+          move = { row: fx.move.row, col: fx.move.col };
+        } else {
+          // ランダム進行中盤面上の黒手番・空交点着手。
+          const base = GB_GEN.randomInProgressState(randomInt(30));
+          state = { board: base.board, currentTurn: Color.BLACK, status: GameStatus.IN_PROGRESS };
+          const empty = GB_GEN.randomEmptyCell(state.board);
+          if (empty === null) {
+            continue;
+          }
+          move = empty;
+        }
+
+        // 前提: 黒手番・進行中・空交点で、着手が有効（placeStone が受理）かつ非 Win。
+        const probe = GoBoardLogic.placeStone(state, move.row, move.col);
+        if (!probe.valid) {
+          continue; // 既石・範囲外・不正座標などは対象外
+        }
+        if (probe.state.status === GameStatus.BLACK_WIN) {
+          continue; // Win_Condition は連続3の同時2箇所成立の禁止より優先されるため対象外
+        }
+
+        // 確定後盤面全体の黒 Open_Three 個数（唯一の情報源）。
+        const blackCount = GoBoardLogic.computeThreeRegistry(probe.state.board).black.length;
+        const expectRejected = blackCount >= 2;
+
+        const result = GoBoardLogic.applyMove(state, move.row, move.col);
+        const rejectedByDoubleThree =
+          result.valid === false && result.reason === InvalidReason.DOUBLE_THREE;
+
+        const ctx = 'src=' + source + ' 着手=(' + move.row + ',' + move.col +
+          ') blackCount=' + blackCount;
+
+        // 拒否と「黒個数 >= 2」は同値。
+        assertEqual(rejectedByDoubleThree, expectRejected,
+          'DOUBLE_THREE 拒否 ⇔ 黒 Open_Three 個数>=2 [' + ctx + ']');
+
+        checked++;
+      }
+      assertEqual(checked >= 100, true, '最低 100 回検証 (検証 ' + checked + ' 回)');
+    });
+
+    // === 旧プロパティテスト（撤去済み） ===============================
+    // 旧 Property 1〜9（着手点を通る方向数・単方向・detectOpenThrees の方向集合等の
+    // 旧セマンティクスに基づくもの）は、上の P1〜P10 に置き換えて撤去した。
+    // 特に旧「Property 8: detectOpenThrees は相異なる方向を返す」は Property 8
+    // （延長可能な連続 3 の Open_Three 検証）へ置換済み。
+
     /* -------------------------------------------------------------------
        UI コントローラ（表示・入力層 / DOM 依存・テスト対象外）
        GoBoardLogic の純粋関数が返す GameState を DOM に描画する。
@@ -2031,6 +3727,13 @@
 
     /** 現在表示中のゲーム状態（GameState）。initUI で生成する。 */
     let gbState = null;
+
+    /**
+     * 現在の Three_Registry（黒・白それぞれの Three_In_A_Row 集合）。
+     * initUI で computeThreeRegistry により初期化し、有効着手のたびに applyMove の
+     * 返す registry で置き換える。
+     */
+    let gbRegistry = null;
 
     /**
      * Game_Status を人間が読めるラベルへ変換する。
@@ -2116,6 +3819,8 @@
      */
     function reasonToMessage(reason) {
       switch (reason) {
+        case InvalidReason.DOUBLE_THREE:
+          return 'その手では両端の空いた3個の連続が同時に2か所できるため置けません';
         case InvalidReason.OCCUPIED:
           return 'そこには既に石があります';
         case InvalidReason.NOT_IN_PROGRESS:
@@ -2151,12 +3856,30 @@
     }
 
     /**
+     * 有効着手の確定後に、更新された Three_Registry を用いて黒・白それぞれの
+     * Three_In_A_Row の有無を console.log に 1 行ずつ出力する。1 つ以上存在する
+     * 色については個数も含める。無効着手時には呼び出さない（有無ログを出さない）。
+     * @param {{black:Object[], white:Object[]}} registry 更新後の Three_Registry
+     */
+    function logThreeInARow(registry) {
+      const blackCount = registry.black.length;
+      const whiteCount = registry.white.length;
+      console.log(blackCount > 0
+        ? '黒の Three_In_A_Row: あり（' + blackCount + '個）'
+        : '黒の Three_In_A_Row: なし');
+      console.log(whiteCount > 0
+        ? '白の Three_In_A_Row: あり（' + whiteCount + '個）'
+        : '白の Three_In_A_Row: なし');
+    }
+
+    /**
      * 盤面クリックのハンドラ。イベント委譲で #gb-board 上に一度だけ登録する。
      * クリックされたセル（.gb-cell）の data-row / data-col を整数として読み取り、
-     * GoBoardLogic.placeStone(gbState, row, col) を呼ぶ。
-     * - 有効な着手: gbState を返却状態へ更新し、盤面・ステータスを再描画する
-     *   （再描画により通知はクリアされる）。
-     * - 無効な着手: gbState は変更せず、理由に応じた日本語メッセージを通知する。
+     * GoBoardLogic.applyMove(gbState, row, col) を呼ぶ（連続3の同時2箇所成立の禁止ローカルルールを含む）。
+     * - 有効な着手: gbState を返却状態へ更新し、gbRegistry を返却 registry へ更新し、
+     *   盤面・ステータスを再描画する（再描画により通知はクリアされる）。あわせて
+     *   黒・白それぞれの Three_In_A_Row の有無を console.log に出力する。
+     * - 無効な着手: gbState / gbRegistry は変更せず、理由に応じた日本語メッセージを通知する。
      *   終局後（NOT_IN_PROGRESS）のクリックも安全に拒否され、通知のみ行う。
      * @param {MouseEvent} event クリックイベント
      */
@@ -2171,10 +3894,13 @@
       const row = parseInt(cell.dataset.row, 10);
       const col = parseInt(cell.dataset.col, 10);
 
-      const result = GoBoardLogic.placeStone(gbState, row, col);
+      const result = GoBoardLogic.applyMove(gbState, row, col);
       if (result.valid) {
         gbState = result.state;
+        gbRegistry = result.registry;
         render(gbState);
+        // 有効着手の確定後にのみ Three_In_A_Row の有無を出力する（無効着手では出さない）。
+        logThreeInARow(gbRegistry);
       } else {
         renderNotice(reasonToMessage(result.reason));
       }
@@ -2204,6 +3930,8 @@
       gbNoticeEl = document.getElementById('gb-notice');
       wireEvents();
       gbState = GoBoardLogic.createGame();
+      // 初期 Three_Registry を空盤から構築する（黒・白とも 0 個）。
+      gbRegistry = GoBoardLogic.computeThreeRegistry(gbState.board);
       render(gbState);
     }
 

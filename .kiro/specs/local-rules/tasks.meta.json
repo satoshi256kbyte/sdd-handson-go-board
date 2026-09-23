@@ -1,0 +1,997 @@
+{
+  "pbtResults": {
+    "7.2 Property 1 のプロパティベーステストを実装する": {
+      "status": "passed",
+      "lastRunTimestamp": 1790087850715
+    },
+    "7.3 Property 2 のプロパティベーステストを実装する": {
+      "status": "passed",
+      "lastRunTimestamp": 1790087851490
+    },
+    "7.4 Property 3 のプロパティベーステストを実装する": {
+      "status": "passed",
+      "lastRunTimestamp": 1790087852887
+    },
+    "7.5 Property 4 のプロパティベーステストを実装する": {
+      "status": "passed",
+      "lastRunTimestamp": 1790087853839
+    },
+    "7.6 Property 5 のプロパティベーステストを実装する": {
+      "status": "passed",
+      "lastRunTimestamp": 1790087855239
+    },
+    "7.7 Property 6 のプロパティベーステストを実装する": {
+      "status": "passed",
+      "lastRunTimestamp": 1790087856241
+    },
+    "7.8 Property 7 のプロパティベーステストを実装する": {
+      "status": "passed",
+      "lastRunTimestamp": 1790087857588
+    },
+    "7.9 Property 8 のプロパティベーステストを実装する": {
+      "status": "passed",
+      "lastRunTimestamp": 1790087858544
+    },
+    "7.10 Property 9 のプロパティベーステストを実装する": {
+      "status": "passed",
+      "lastRunTimestamp": 1790087859505
+    }
+  },
+  "executionHistory": {
+    "1. 定数・理由コードの追加（additive）": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081712862
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081723365
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081780213
+      }
+    ],
+    "2.1 detectOpenThrees(board, row, col, color) を実装する": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081712930
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081784457
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081968809
+      }
+    ],
+    "2.2 detectOpenThrees の単体テストを追加する": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081712959
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790082828006
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790083700727
+      }
+    ],
+    "3.1 isDoubleThreeMove(board, row, col, color) を実装する": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081712985
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081976698
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790082034927
+      }
+    ],
+    "3.2 isDoubleThreeMove の単体テストを追加する": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081713015
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790083706338
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790083816236
+      }
+    ],
+    "4.1 findThreeInARow(board, color) と computeThreeRegistry(board) を実装する": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081713039
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790082039916
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790082817705
+      }
+    ],
+    "4.2 findThreeInARow / computeThreeRegistry の単体テストを追加する": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081713060
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790083821049
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790083926474
+      }
+    ],
+    "5. Checkpoint - ここまでの検出・登録ロジックのテストを通す": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081713094
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790083942161
+      }
+    ],
+    "6.1 applyMove(state, row, col) を実装する": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081713118
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790083947887
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790084092192
+      }
+    ],
+    "6.2 applyMove の単体テストを追加する": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081713141
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790084097211
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790084251320
+      }
+    ],
+    "7.1 GB_GEN に本機能用ジェネレータを追加する": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081713165
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790084256364
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790087598433
+      }
+    ],
+    "7.2 Property 1 のプロパティベーステストを実装する": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081713184
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790087607376
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790087894152
+      }
+    ],
+    "7.3 Property 2 のプロパティベーステストを実装する": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081713208
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790087607744
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790087895369
+      }
+    ],
+    "7.4 Property 3 のプロパティベーステストを実装する": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081713233
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790087608841
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790087896503
+      }
+    ],
+    "7.5 Property 4 のプロパティベーステストを実装する": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081713253
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790087610169
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790087897725
+      }
+    ],
+    "7.6 Property 5 のプロパティベーステストを実装する": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081713275
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790087612417
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790087898891
+      }
+    ],
+    "7.7 Property 6 のプロパティベーステストを実装する": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081713298
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790087612820
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790087899985
+      }
+    ],
+    "7.8 Property 7 のプロパティベーステストを実装する": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081713317
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790087613823
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790087901249
+      }
+    ],
+    "7.9 Property 8 のプロパティベーステストを実装する": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081713341
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790087614299
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790087902340
+      }
+    ],
+    "7.10 Property 9 のプロパティベーステストを実装する": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081713362
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790087615449
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790087903220
+      }
+    ],
+    "8. Checkpoint - 追加テストと既存テストがすべて通ることを確認する": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081713384
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790087909916
+      }
+    ],
+    "9.1 クリック処理を applyMove 呼び出しへ切り替える": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081713408
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790087915352
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790088043135
+      }
+    ],
+    "9.2 拒否通知と Three_In_A_Row ログ出力を配線する": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081713431
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790088048257
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790088213707
+      }
+    ],
+    "10. Final checkpoint - 全体統合と回帰確認": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790081713450
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790088219986
+      },
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790088368668
+      }
+    ],
+    "2. Open_Three 検出の実装": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790083700786
+      }
+    ],
+    "3. Double_Three 判定の実装": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790083816269
+      }
+    ],
+    "4. Three_Registry の再計算実装": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790083926523
+      }
+    ],
+    "6. applyMove ラッパの実装と公開 API 追加": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790084251381
+      }
+    ],
+    "7. プロパティベーステストの追加": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790087903253
+      }
+    ],
+    "9. UI コントローラへの配線（DOM 依存・自動テスト対象外）": [
+      {
+        "executionId": "47991c29-8b13-4365-aa27-e4dddfb63f63",
+        "chatSessionId": "sess_eac69a6d-9ca8-4d16-8a40-19b0fc034000",
+        "timestamp": 1790088213744
+      }
+    ],
+    "1.1 findOpenThrees(board, color) を実装する": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089837005
+      },
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089848067
+      },
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089997056
+      }
+    ],
+    "1.2 旧 detectOpenThrees と旧 findThreeInARow を除去する": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089837043
+      },
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790090002390
+      },
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790090146266
+      }
+    ],
+    "1.3 findOpenThrees の単体テストを更新・置換する": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089837073
+      },
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790090151084
+      },
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790090321302
+      }
+    ],
+    "2.1 computeThreeRegistry(board) を findOpenThrees ベースに再定義する": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089837118
+      },
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790090326702
+      },
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790090435340
+      }
+    ],
+    "2.2 computeThreeRegistry の単体テストを更新する": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089837151
+      },
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790093541733
+      },
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790099437716
+      }
+    ],
+    "3.1 isDoubleThree(board, color) を実装する": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089837175
+      },
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790090439521
+      },
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790090544363
+      }
+    ],
+    "3.2 旧 isDoubleThreeMove を除去する": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089837200
+      },
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790090550685
+      },
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790090648429
+      }
+    ],
+    "3.3 isDoubleThree の単体テストを更新・置換する": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089837224
+      },
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790090652482
+      },
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790093537170
+      }
+    ],
+    "4.1 applyMove(state, row, col) の禁止ロジックを差し替える": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089837249
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790124787856
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790124882994
+      }
+    ],
+    "4.2 applyMove の単体テストを更新・置換する": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089837275
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790124887521
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790125097178
+      }
+    ],
+    "5.1 GoBoardLogic の公開 API を新関数へ差し替える": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089837307
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790124888690
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790124950423
+      }
+    ],
+    "6. Checkpoint - ロジック移行後の検証": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089837340
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790125113257
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126081861
+      }
+    ],
+    "7.1 三三系ジェネレータを全盤面個数ベースへ再定義する": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089837371
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126088720
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126386681
+      }
+    ],
+    "7.2 「既存 Open_Three ＋ 離れた 2 個目」ジェネレータを追加する": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089837397
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126095405
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126386711
+      }
+    ],
+    "8.1 旧プロパティテストを新定義へ差し替える": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089837426
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126393944
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126765509
+      }
+    ],
+    "8.2 Property 1 のプロパティベーステストを実装する": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089837455
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126402202
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126766771
+      }
+    ],
+    "8.3 Property 2 のプロパティベーステストを実装する": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089837476
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126404180
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126768162
+      }
+    ],
+    "8.4 Property 3 のプロパティベーステストを実装する": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089837508
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126404412
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126769110
+      }
+    ],
+    "8.5 Property 4 のプロパティベーステストを実装する": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089837533
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126405362
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126770499
+      }
+    ],
+    "8.6 Property 5 のプロパティベーステストを実装する": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089837566
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126406965
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126771449
+      }
+    ],
+    "8.7 Property 6 のプロパティベーステストを実装する": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089837600
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126407710
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126772408
+      }
+    ],
+    "8.8 Property 7 のプロパティベーステストを実装する": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089837633
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126409094
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126773797
+      }
+    ],
+    "8.9 Property 8 のプロパティベーステストを実装する": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089837664
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126410052
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126774813
+      }
+    ],
+    "8.10 Property 9 のプロパティベーステストを実装する": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089837692
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126411433
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126776151
+      }
+    ],
+    "8.11 Property 10 のプロパティベーステストを実装する": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089837717
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126412335
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126777061
+      }
+    ],
+    "9.1 Three_Registry 再定義後のログ文言と個数の整合を検証する": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089837742
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126781715
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126980016
+      }
+    ],
+    "10. Final checkpoint - 移行完了と回帰確認": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790089837766
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126985984
+      },
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790127341067
+      }
+    ],
+    "1. Open_Three 検出の改名・再定義（旧 detectOpenThrees / findThreeInARow の統合）": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790090321335
+      }
+    ],
+    "3. Double_Three 判定を盤面全体の個数へ再定義する": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790093537237
+      }
+    ],
+    "2. Three_Registry を Open_Three のみで再計算する": [
+      {
+        "executionId": "8819b1bd-402b-481f-9a09-f4ce4b476db5",
+        "chatSessionId": "sess_d2754594-659d-4d45-aa7a-5df113e1203b",
+        "timestamp": 1790099437784
+      }
+    ],
+    "5. 公開 API エクスポートの更新": [
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790124950462
+      }
+    ],
+    "4. applyMove の禁止判定を Three_Registry の黒個数へ移行する": [
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790125097230
+      }
+    ],
+    "8. プロパティテストを新 P1〜P10 へ再定義する": [
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126777093
+      }
+    ],
+    "9. UI/ログ配線の検証と微調整（DOM 依存・自動テスト対象外）": [
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790126980050
+      }
+    ],
+    "7. GB_GEN ジェネレータを新意味論へ更新する": [
+      {
+        "executionId": "c8f3f134-21cf-4147-86cd-fbf2fe421139",
+        "chatSessionId": "sess_c3ae150c-da20-4e0f-889b-b48659295788",
+        "timestamp": 1790127355248
+      }
+    ]
+  }
+}
